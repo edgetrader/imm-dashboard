@@ -20,7 +20,8 @@
     "OPENING VIEW",
     "==================================================================================",
     "   defaultGroup        team selected on load   (default: the first in `groups`)",
-    "   defaultReportMonth  month selected on load  (default: the earliest in the data)",
+    "   defaultReportMonth  month selected on load: \"latest\" (default), \"earliest\",",
+    "                       or an explicit date key such as \"2026-06-30\"",
     "   labels              captions above the three pickers:",
     "                       group / reportMonth / rowsPerPage",
     "",
@@ -98,7 +99,7 @@
     "            always sort last."
   ],
   "dataset": {
-    "_note": "Where the data comes from, and which of its columns drive the page furniture. `workbook` is resolved relative to index.html; override it per-visit with ?data=<url>.",
+    "_note": "Where the data comes from, and which of its columns drive the page furniture. `workbook` may be relative to index.html, absolute from the site root (/data/...), or a full http(s) URL on a server that allows cross-origin reads. It cannot be an operating-system file path \u2014 the browser can only fetch over http. Override it per-visit with ?data=<url>.",
     "workbook": "data/imm_data.xlsx",
     "sheetName": "data",
     "reportDateColumn": "report_date",
@@ -107,7 +108,7 @@
     "weightColumn": "aum_usd"
   },
   "defaultGroup": "1a. Fixed Income - Total Return",
-  "defaultReportMonth": "2026-06-30",
+  "defaultReportMonth": "latest",
   "labels": {
     "_note": "Captions for the three page controls.",
     "group": "Team",

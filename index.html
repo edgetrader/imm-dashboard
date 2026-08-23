@@ -1169,7 +1169,20 @@
 
     var dg = cfg.defaultGroup, dm = cfg.defaultReportMonth;
     grpEl.value = (dg && groups.some(function(g){ return g.key === dg; })) ? dg : groups[0].key;
-    mthEl.value = (dm && D.months.some(function(m){ return m.key === dm; })) ? dm : D.months[0].key;
+
+    // defaultReportMonth accepts "latest" (the default), "earliest", or an
+    // explicit key. Resolved from the data, not from the picker's sort order.
+    var keys = D.months.map(function(m){ return m.key; }).slice().sort();
+    var wanted;
+    if (dm == null || dm === "latest")   wanted = keys[keys.length - 1];
+    else if (dm === "earliest")          wanted = keys[0];
+    else if (keys.indexOf(dm) !== -1)    wanted = dm;
+    else {
+      baseWarn.push('defaultReportMonth "' + dm + '" is not a report date in ' + D.source
+                    + " — using the latest");
+      wanted = keys[keys.length - 1];
+    }
+    mthEl.value = wanted;
 
     enhanceSelect(grpEl);
     enhanceSelect(mthEl);
