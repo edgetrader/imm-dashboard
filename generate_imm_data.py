@@ -49,7 +49,7 @@ EXCO_VIEW1 = [
     "10. Derivatives (MTM)",
     "11. Others",
     "3. Local Equities",
-    "5a. Portfolio Solutions - Discretion",
+    "5a. Discretion",
 ]
 EXCO_VIEW3 = ["GA", "ILP", "Entity A", "Entity B"]
 REASONS = [

@@ -1,4 +1,10 @@
-"""Export data/imm_data.xlsx into dashboard/data.js.
+"""Optional JSON export of data/imm_data.xlsx.
+
+NOT required by the dashboard — dashboard/index.html reads the .xlsx directly
+in the browser. Kept as a way to dump the workbook as JSON, or to validate that
+it parses, without opening the page.
+
+Original purpose:
 
 Every column of the workbook is exported under its own name, so
 dashboard/config/settings.json can address any of them directly. No values are

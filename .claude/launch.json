@@ -4,7 +4,7 @@
     {
       "name": "imm-dashboard",
       "runtimeExecutable": "/usr/local/bin/python3.11",
-      "runtimeArgs": ["-m", "http.server", "8321", "--directory", "dashboard"],
+      "runtimeArgs": ["-m", "http.server", "8321"],
       "port": 8321
     }
   ]

@@ -8,8 +8,13 @@ A synthetic investment-mandate monitoring (IMM) panel and a static dashboard tha
 Two generators and one page, wired in a straight line:
 
     generate_imm_data.py  ->  data/imm_data.xlsx      (the panel, 360 rows x 44 columns)
-    build_dashboard.py    ->  dashboard/data.js       (every column, under its real name)
-    dashboard/index.html  <-  dashboard/config/settings.json  (fetched at runtime)
+    dashboard/index.html  <-  data/imm_data.xlsx      (parsed in the browser, no build step)
+                          <-  dashboard/config/settings.json  (fetched at runtime)
+
+There is no generated data file. index.html contains a small dependency-free .xlsx
+reader: it unzips the workbook with DecompressionStream('deflate-raw') and parses
+sharedStrings/styles/sheet XML with DOMParser. build_dashboard.py still exists but
+the page does not use it.
 
 The dashboard layout is modelled on `reference/dashboard-screenshot.png`. Colours and
 geometry in the page were sampled from that PNG, not eyeballed — taupe `#B0A99F`,
@@ -25,12 +30,12 @@ rebuild the env with `python3.11 -m venv .venv && .venv/bin/pip install -r requi
 
 ```bash
 .venv/bin/python generate_imm_data.py     # rewrite data/imm_data.xlsx
-.venv/bin/python build_dashboard.py       # rewrite dashboard/data.js from the workbook
-python3.11 -m http.server 8321 --directory dashboard   # serve; open http://localhost:8321/
+python3.11 -m http.server 8321            # serve from the PROJECT ROOT
 ```
 
-Regenerating the workbook requires rebuilding `data.js` — the dashboard never reads
-the .xlsx directly.
+Open http://localhost:8321/dashboard/. The server root must be the project root so
+`../data/imm_data.xlsx` resolves; this also matches a GitHub Pages layout. Editing the
+workbook needs no rebuild — just refresh.
 
 Useful generator flags: `--per-group` (mandates per group, default 10), `--seed`
 (default 42), `--derive-excess`, `--reason-null-when-in-scope`, `--out`, `--sheet-name`.
@@ -116,7 +121,7 @@ Faithful to the spec below, but worth restating before anyone reads the numbers 
 
 - mandate_id: **string** | String/text. Generate realistic values matching observed pattern.
 - port_mandate_name: **string** | String/text. Generate realistic values matching observed pattern.
-- exco_view1_level1: **string** | Categorical. Sample from observed categories: 1b. Fixed Income - Buy and Maintain, 1a. Fixed Income - Total Return, 4. ILP, 2. Global Equities, 5b. Advisory, 8a. Private Credit - IRR, 6. Private Equity / Venture Capital, 7. Real Estate, 10. Derivatives (MTM), 11. Others, 3. Local Equities, 5a. Portfolio Solutions - Discretion
+- exco_view1_level1: **string** | Categorical. Sample from observed categories: 1b. Fixed Income - Buy and Maintain, 1a. Fixed Income - Total Return, 4. ILP, 2. Global Equities, 5b. Advisory, 8a. Private Credit - IRR, 6. Private Equity / Venture Capital, 7. Real Estate, 10. Derivatives (MTM), 11. Others, 3. Local Equities, 5a. Discretion
 - exco_view3_level1: **string** | Categorical. Sample from observed categories: GA, ILP, Entity A, Entity B
 - kpi_in_scope: **integer** | Random integer using min=0, max=1.
 - reason: **string** | Categorical. Sample from observed categories: Small Size / Unfunded, Non Discretionary, Double Count, Advisory Mandate, Platform Exclusion, Derivative Mandates, New Mandate, Undefined KPI Methodology, Terminated

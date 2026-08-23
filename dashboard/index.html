@@ -108,10 +108,9 @@
   <p class="foot" id="foot"></p>
 </div>
 
-<script src="data.js"></script>
 <script>
 (function(){
-  var D = window.IMM;
+  var D = null;   // built at load time by reading the workbook
   var $ = function(id){ return document.getElementById(id); };
   var isArr = function(x){ return Object.prototype.toString.call(x) === "[object Array]"; };
 
@@ -264,7 +263,7 @@
     raw.forEach(function(e){
       if (!e || !e.group) return;
       if (!byKey[e.group]){
-        baseWarn.push('group "' + e.group + '" is not present in ' + D.source);
+        baseWarn.push('settings.json: group "' + e.group + '" is not present in ' + D.source);
         return;
       }
       out.push({key: e.group, label: e.title || byKey[e.group].label,
@@ -484,7 +483,7 @@
       + "   ·   click a header to sort by it, shift-click to add another column";
 
     var msgs = baseWarn.concat(warn);
-    $("warn").textContent = msgs.length ? "config/settings.json: " + msgs.join(" · ") : "";
+    $("warn").textContent = msgs.length ? msgs.join(" · ") : "";
   }
 
   function pageBtn(label, target, opts){
@@ -585,13 +584,247 @@
     render();
   });
 
-  function start(){
-    DS = {};
+  // ---------------------------------------------------------------------
+  // Minimal .xlsx reader. An .xlsx is a ZIP of XML; the browser can inflate
+  // it with DecompressionStream, so no third-party library is needed.
+  // ---------------------------------------------------------------------
+  var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var DATE_FMT_IDS = {14:1,15:1,16:1,17:1,18:1,19:1,20:1,21:1,22:1,45:1,46:1,47:1};
+
+  function utf8(bytes){ return new TextDecoder("utf-8").decode(bytes); }
+  function xml(text){
+    var doc = new DOMParser().parseFromString(text, "application/xml");
+    if (doc.getElementsByTagName("parsererror").length) throw new Error("malformed XML in workbook");
+    return doc;
+  }
+
+  function readZip(buf){
+    var dv = new DataView(buf), u8 = new Uint8Array(buf), eocd = -1;
+    var floor = Math.max(0, u8.length - 22 - 65535);
+    for (var i = u8.length - 22; i >= floor; i--){
+      if (dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error("not a valid .xlsx (no ZIP end-of-directory record)");
+    var count = dv.getUint16(eocd + 10, true), p = dv.getUint32(eocd + 16, true), entries = {};
+    for (var n = 0; n < count && dv.getUint32(p, true) === 0x02014b50; n++){
+      var nameLen  = dv.getUint16(p + 28, true),
+          extraLen = dv.getUint16(p + 30, true),
+          cmtLen   = dv.getUint16(p + 32, true);
+      entries[utf8(u8.subarray(p + 46, p + 46 + nameLen))] = {
+        method: dv.getUint16(p + 10, true),
+        size:   dv.getUint32(p + 20, true),
+        lho:    dv.getUint32(p + 42, true)
+      };
+      p += 46 + nameLen + extraLen + cmtLen;
+    }
+    return {dv: dv, u8: u8, entries: entries};
+  }
+
+  function unzip(zip, name){
+    var e = zip.entries[name];
+    if (!e) return Promise.reject(new Error('"' + name + '" is missing from the workbook'));
+    var nameLen  = zip.dv.getUint16(e.lho + 26, true),
+        extraLen = zip.dv.getUint16(e.lho + 28, true),
+        start    = e.lho + 30 + nameLen + extraLen;
+    var raw = zip.u8.subarray(start, start + e.size);
+    if (e.method === 0) return Promise.resolve(utf8(raw));
+    if (e.method !== 8) return Promise.reject(new Error("unsupported ZIP compression method " + e.method));
+    return new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw")))
+      .arrayBuffer().then(function(b){ return utf8(new Uint8Array(b)); });
+  }
+
+  function textOf(node){
+    var t = node.getElementsByTagName("t"), out = "";
+    for (var i = 0; i < t.length; i++) out += t[i].textContent;
+    return out;
+  }
+
+  // Style indices whose number format renders as a date.
+  function dateStyles(stylesXml){
+    var out = {};
+    if (!stylesXml) return out;
+    var doc = xml(stylesXml), custom = {};
+    var nf = doc.getElementsByTagName("numFmt");
+    for (var i = 0; i < nf.length; i++){
+      var code = (nf[i].getAttribute("formatCode") || "")
+                   .replace(/\[[^\]]*\]/g, "").replace(/"[^"]*"/g, "");
+      if (/[ymdhs]/i.test(code)) custom[nf[i].getAttribute("numFmtId")] = 1;
+    }
+    var xfs = doc.getElementsByTagName("cellXfs")[0];
+    if (!xfs) return out;
+    var list = xfs.getElementsByTagName("xf");
+    for (var j = 0; j < list.length; j++){
+      var id = list[j].getAttribute("numFmtId");
+      if (DATE_FMT_IDS[+id] || custom[id]) out[j] = 1;
+    }
+    return out;
+  }
+
+  function colIndex(ref){
+    var n = 0;
+    for (var i = 0; i < ref.length; i++){
+      var ch = ref.charCodeAt(i);
+      if (ch < 65 || ch > 90) break;
+      n = n * 26 + (ch - 64);
+    }
+    return n - 1;
+  }
+
+  // Excel serial day -> ISO date. 25569 = days from 1899-12-30 to 1970-01-01.
+  function serialToISO(v){
+    return new Date(Math.round((v - 25569) * 86400000)).toISOString().slice(0, 10);
+  }
+
+  function cellValue(c, shared, dates){
+    var t = c.getAttribute("t");
+    if (t === "inlineStr"){
+      var is = c.getElementsByTagName("is")[0];
+      return is ? textOf(is) : null;
+    }
+    var v = c.getElementsByTagName("v")[0];
+    if (!v) return null;
+    var raw = v.textContent;
+    if (t === "s")   return shared[+raw] == null ? null : shared[+raw];
+    if (t === "str") return raw;
+    if (t === "b")   return raw === "1" ? 1 : 0;
+    if (t === "e")   return null;
+    var num = parseFloat(raw);
+    if (isNaN(num)) return null;
+    var st = c.getAttribute("s");
+    return (st != null && dates[+st]) ? serialToISO(num) : num;
+  }
+
+  // Resolve the requested sheet name to its part path inside the archive.
+  function sheetPath(zip, wbXml, relsXml, want){
+    var sheets = xml(wbXml).getElementsByTagName("sheet"), rid = null, names = [];
+    for (var i = 0; i < sheets.length; i++){
+      var nm = sheets[i].getAttribute("name");
+      names.push(nm);
+      if (!want || nm === want){ rid = sheets[i].getAttribute("r:id") ||
+                                       sheets[i].getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
+        if (want) break; }
+    }
+    if (rid == null)
+      throw new Error('sheet "' + want + '" not found — workbook has: ' + names.join(", "));
+    var rels = xml(relsXml).getElementsByTagName("Relationship");
+    for (var j = 0; j < rels.length; j++){
+      if (rels[j].getAttribute("Id") === rid){
+        var target = rels[j].getAttribute("Target").replace(/^\/?xl\//, "").replace(/^\//, "");
+        return "xl/" + target;
+      }
+    }
+    throw new Error("could not resolve the sheet relationship in the workbook");
+  }
+
+  function parseSheet(sheetXml, shared, dates){
+    var rows = xml(sheetXml).getElementsByTagName("row"), header = null, out = [];
+    for (var r = 0; r < rows.length; r++){
+      var cells = rows[r].getElementsByTagName("c"), vals = [];
+      for (var c = 0; c < cells.length; c++){
+        var ref = cells[c].getAttribute("r");
+        vals[ref ? colIndex(ref) : c] = cellValue(cells[c], shared, dates);
+      }
+      if (!header){
+        header = [];
+        for (var h = 0; h < vals.length; h++) header.push(vals[h] == null ? "col" + h : String(vals[h]));
+        continue;
+      }
+      var obj = {}, empty = true;
+      for (var k = 0; k < header.length; k++){
+        var val = vals[k] === undefined ? null : vals[k];
+        obj[header[k]] = val;
+        if (val !== null && val !== "") empty = false;
+      }
+      if (!empty) out.push(obj);
+    }
+    return {columns: header || [], rows: out};
+  }
+
+  function monthLabel(iso){
+    var p = String(iso).split("-");
+    return MONTHS[(+p[1] || 1) - 1] + " " + p[0];
+  }
+  function groupLabel(g){
+    var body = g.indexOf(". ") !== -1 ? g.split(". ").slice(1).join(". ") : g;
+    return body.split(" - ").join(" – ");
+  }
+  function groupSortKey(g){
+    var m = /^(\d+)([a-z]?)\./.exec(g);
+    return m ? [parseInt(m[1], 10), m[2]] : [99, g];
+  }
+
+  function loadWorkbook(url, sheet){
+    if (typeof DecompressionStream === "undefined")
+      return Promise.reject(new Error("this browser cannot inflate .xlsx (no DecompressionStream)"));
+    var stamp = "";
+    return fetch(url, {cache: "no-store"})
+      .then(function(res){
+        if (!res.ok) throw new Error("HTTP " + res.status + " fetching " + url);
+        stamp = res.headers.get("last-modified") || "";
+        return res.arrayBuffer();
+      })
+      .then(function(buf){
+        var zip = readZip(buf);
+        return Promise.all([
+          unzip(zip, "xl/workbook.xml"),
+          unzip(zip, "xl/_rels/workbook.xml.rels"),
+          zip.entries["xl/sharedStrings.xml"] ? unzip(zip, "xl/sharedStrings.xml") : Promise.resolve(null),
+          zip.entries["xl/styles.xml"]        ? unzip(zip, "xl/styles.xml")        : Promise.resolve(null)
+        ]).then(function(parts){
+          var shared = [];
+          if (parts[2]){
+            var si = xml(parts[2]).getElementsByTagName("si");
+            for (var i = 0; i < si.length; i++) shared.push(textOf(si[i]));
+          }
+          var dates = dateStyles(parts[3]);
+          return unzip(zip, sheetPath(zip, parts[0], parts[1], sheet))
+            .then(function(sheetXml){ return parseSheet(sheetXml, shared, dates); });
+        });
+      })
+      .then(function(sheetData){
+        var name = url.split("/").pop().split("?")[0];
+        var d = {
+          source: name,
+          generated: stamp ? new Date(stamp).toISOString().slice(0, 16).replace("T", " ") : "read from workbook",
+          columns: sheetData.columns,
+          rows: sheetData.rows,
+          months: [], groups: []
+        };
+        var seenM = {}, seenG = {};
+        d.rows.forEach(function(r){
+          var m = r[DS.reportDateColumn], g = r[DS.groupColumn];
+          if (m != null && !seenM[m]){ seenM[m] = 1; d.months.push({key: String(m), label: monthLabel(m)}); }
+          if (g != null && !seenG[g]){ seenG[g] = 1; d.groups.push({key: g, label: groupLabel(g)}); }
+        });
+        d.months.sort(function(a, b){ return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; });
+        d.groups.sort(function(a, b){
+          var x = groupSortKey(a.key), y = groupSortKey(b.key);
+          return x[0] - y[0] || (x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0);
+        });
+        if (!d.rows.length) throw new Error("the sheet has no data rows");
+        return d;
+      });
+  }
+
+  function resolveDataset(){
     var d = cfg.dataset || {};
-    DS.reportDateColumn = d.reportDateColumn || D.dateColumn  || "report_date";
-    DS.groupColumn      = d.groupColumn      || D.groupColumn || "exco_view1_level1";
-    DS.idColumn         = d.idColumn         || "mandate_id";
-    DS.weightColumn     = d.weightColumn     || "aum_usd";
+    DS = {
+      reportDateColumn: d.reportDateColumn || "report_date",
+      groupColumn:      d.groupColumn      || "exco_view1_level1",
+      idColumn:         d.idColumn         || "mandate_id",
+      weightColumn:     d.weightColumn     || "aum_usd",
+      workbook:         d.workbook         || "../data/imm_data.xlsx",
+      sheetName:        d.sheetName        || "data"
+    };
+    // ?data= and ?sheet= override the config, for pointing at another workbook
+    // without editing settings.json.
+    var q = new URLSearchParams(location.search);
+    if (q.get("data"))  DS.workbook  = q.get("data");
+    if (q.get("sheet")) DS.sheetName = q.get("sheet");
+  }
+
+  function start(){
+    window.IMM = D;   // parsed workbook, exposed for console inspection
     ["reportDateColumn","groupColumn","idColumn","weightColumn"].forEach(function(k){
       if (D.columns.indexOf(DS[k]) === -1)
         baseWarn.push('dataset.' + k + ' "' + DS[k] + '" is not in ' + D.source);
@@ -636,14 +869,30 @@
     render();
   }
 
+  function fail(msg){
+    $("warn").textContent = msg;
+    $("tbody").innerHTML = '<tr><td class="empty">Could not load the data.</td></tr>';
+    $("pager").innerHTML = ""; $("hint").textContent = "";
+  }
+
   fetch("config/settings.json", {cache: "no-store"})
     .then(function(res){ if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
     .then(function(json){ cfg = json; })
     .catch(function(err){
       cfg = FALLBACK;
-      baseWarn.push("could not be loaded (" + err.message + ") — using built-in defaults; serve the dashboard folder over http to enable it");
+      baseWarn.push("config/settings.json could not be loaded (" + err.message
+                    + ") — using built-in defaults; serve the project over http to enable it");
     })
-    .then(start);
+    .then(function(){
+      resolveDataset();
+      return loadWorkbook(DS.workbook, DS.sheetName);
+    })
+    .then(function(data){ D = data; start(); })
+    .catch(function(err){
+      fail("Could not read " + DS.workbook + " — " + err.message
+           + ". The workbook must be reachable over http from this page;"
+           + ' set dataset.workbook in settings.json, or pass ?data=<url>.');
+    });
 })();
 </script>
 </body>

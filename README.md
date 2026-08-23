@@ -11,30 +11,37 @@ driven entirely by a JSON config file.
 ## Quick start
 
 ```bash
-python3.11 -m http.server 8321 --directory dashboard
+python3.11 -m http.server 8321
 ```
 
-Open <http://localhost:8321/>. Nothing needs building — `dashboard/data.js` and the
-workbook are already generated and in the tree.
+Open <http://localhost:8321/dashboard/>. Nothing needs building — **the page reads
+`data/imm_data.xlsx` directly in the browser**, so editing the workbook and
+refreshing is enough.
 
-To regenerate everything from scratch:
+To regenerate the data itself:
 
 ```bash
 .venv/bin/python generate_imm_data.py     # -> data/imm_data.xlsx
-.venv/bin/python build_dashboard.py       # -> dashboard/data.js
 ```
 
-The dashboard reads `data.js`, never the spreadsheet directly, so rerun
-`build_dashboard.py` whenever the workbook changes.
+### Pointing at a different workbook
+
+Set `dataset.workbook` in the config, or override per-visit from the URL:
+
+```
+http://localhost:8321/dashboard/?data=../data/other.xlsx&sheet=data
+```
+
+The path is resolved relative to `index.html`, and the workbook must be reachable
+over http from the page — which is why the server runs from the project root.
 
 ## Layout
 
 ```
 generate_imm_data.py          panel generator (spec -> xlsx)
-build_dashboard.py            xlsx -> dashboard/data.js
+build_dashboard.py            optional JSON dump of the workbook (not used by the page)
 data/imm_data.xlsx            360 rows x 44 columns
 dashboard/index.html          the page (self-contained CSS + JS)
-dashboard/data.js             exported rows, all columns under their real names
 dashboard/config/settings.json  everything configurable
 reference/                    the layout this is modelled on
 claude.md                     data specification + guidance for Claude Code

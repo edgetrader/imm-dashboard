@@ -2,6 +2,11 @@
   "_readme": [
     "Dashboard configuration. Edit, then refresh the browser \u2014 nothing to rebuild.",
     "",
+    "DATA SOURCE \u2014 the page reads data/imm_data.xlsx directly in the browser; there is",
+    "no build step. `dataset.workbook` is the path (relative to index.html) and",
+    "`dataset.sheetName` the sheet. Append ?data=<url>&sheet=<name> to the dashboard URL",
+    "to point at a different workbook without editing this file.",
+    "",
     "HOW A COLUMN IS DEFINED \u2014 each entry in `columns` reads left to right:",
     "   column    : the column name in imm_data.xlsx (this is what supplies the values)",
     "   analytics : which analytics group it belongs to \u2014 this sets the header colour",
@@ -47,7 +52,9 @@
     "A group with no overrides shows the full `columns` list above."
   ],
   "dataset": {
-    "_note": "Which imm_data.xlsx columns drive the page furniture.",
+    "_note": "Where the data comes from, and which of its columns drive the page furniture. `workbook` is resolved relative to index.html; override it per-visit with ?data=<url>.",
+    "workbook": "../data/imm_data.xlsx",
+    "sheetName": "data",
     "reportDateColumn": "report_date",
     "groupColumn": "exco_view1_level1",
     "idColumn": "mandate_id",
@@ -56,10 +63,16 @@
   "defaultReportMonth": "2026-06-30",
   "table": {
     "aggregation": "wavg",
-  "defaultSort": [
-    { "column": "kpi_in_scope", "direction": "desc" },
-    { "column": "aum_usd",      "direction": "desc" }
-  ],
+    "defaultSort": [
+      {
+        "column": "kpi_in_scope",
+        "direction": "desc"
+      },
+      {
+        "column": "aum_usd",
+        "direction": "desc"
+      }
+    ],
     "pageSize": 10,
     "pageSizeOptions": [
       5,
@@ -218,7 +231,7 @@
       }
     },
     {
-      "group": "5a. Portfolio Solutions - Discretion",
+      "group": "5a. Discretion",
       "analytics": {
         "peer": false
       }
