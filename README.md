@@ -34,7 +34,7 @@ data/imm_data.xlsx                   360 rows x 44 columns
 generate_imm_data.py                 panel generator (spec -> xlsx)
 build_dashboard.py                   optional JSON dump of the workbook (not used by the page)
 reference/dashboard-screenshot.png   the layout this is modelled on
-claude.md                            data specification + guidance for Claude Code
+CLAUDE.md                            data specification + guidance for Claude Code
 ```
 
 The server root must be the project root so `data/` and `config/` resolve. That is also a
@@ -52,12 +52,12 @@ function, so every field still matches its specified marginal distribution exact
 report date. Month-over-month correlation runs 0.90 (YTD returns) to 0.98 (AUM, 3-year
 returns). Generation is seeded (`--seed 42`) and reproducible.
 
-Column distributions are defined in [claude.md](claude.md).
+Column distributions are defined in [CLAUDE.md](CLAUDE.md).
 
 > **These are synthetic numbers with known artefacts.** `excess_rtn_*` does not reconcile
 > to portfolio minus benchmark, heavily truncated fields do not reproduce their stated mean
 > and standard deviation, `aum_usd` can be negative, and the risk columns render far larger
-> than the reference screenshot suggests. See *Known data caveats* in [claude.md](claude.md).
+> than the reference screenshot suggests. See *Known data caveats* in [CLAUDE.md](CLAUDE.md).
 
 ## Using the dashboard
 
