@@ -198,6 +198,7 @@
   var PAGE_OPTS = [5, 10, 25, 50, 100, "all"];
 
   var cfg, DS, TBL, groups, cols, baseWarn = [], warn = [], sel = null;
+  var BANDS = {};   // column -> ordered band table, from a mapping workbook
   var sortKeys = [], page = 1, pageSize = 10, LABEL_ROWS = "Rows per page";
 
   // Widths the user has dragged, in px, keyed by workbook column. Kept across
@@ -255,6 +256,42 @@
     if (how === "avg")  return mean(rows, key);
     if (how === "wavg") return wmean(rows, key);
     return null;
+  }
+
+  // Aggregate a coded column (e.g. an ORR grade) through a mapping table:
+  // translate each label to its numeric `order`, take the weighted mean of
+  // those, then read back which band the result falls into and show that
+  // band's label. Labels listed in `exclude` carry no weight at all.
+  function bandAggregate(rows, c){
+    var tbl = BANDS[c.column];
+    if (!tbl) return null;
+    var W = DS.weightColumn, num = 0, den = 0, plain = [];
+
+    rows.forEach(function(r){
+      var lab = r[c.column];
+      if (lab == null || !visible(c, r)) return;
+      var e = tbl.byLabel[String(lab)];
+      if (!e){ warn.push('ORR grade "' + lab + '" is not in ' + tbl.source); return; }
+      if (e.excluded) return;
+      plain.push(e.value);
+      var w = r[W] > 0 ? r[W] : 0;
+      num += w * e.value; den += w;
+    });
+
+    var x;
+    if (den > 0) x = num / den;
+    else if (plain.length) x = plain.reduce(function(a, b){ return a + b; }, 0) / plain.length;
+    else return null;
+
+    // First band that contains the value, scanning in file order; bands are
+    // lower-inclusive because they share endpoints.
+    var list = tbl.rows;
+    for (var i = 0; i < list.length; i++){
+      if (x >= list[i].min && x < list[i].max) return list[i].label;
+    }
+    var last = list[list.length - 1];
+    if (x >= last.max) return last.label;          // the top band includes its max
+    return list[0].label;                          // below the scale
   }
   function aggLabel(){
     return TBL.aggregation === "avg" ? "simple averages" : "AUM-weighted averages";
@@ -624,8 +661,9 @@
       var t = document.createElement("tr"), labelled = false;
       cols.forEach(function(c, i){
         var td = document.createElement("td"), v = "", how = def(c, "total");
-        if (how !== "none")    v = (FMT[c.format] || FMT.text)(aggregate(all, c.column, how));
-        else if (!labelled)  { v = "Total"; labelled = true; }
+        if (how === "band")      v = FMT.text(bandAggregate(all, c));
+        else if (how !== "none") v = (FMT[c.format] || FMT.text)(aggregate(all, c.column, how));
+        else if (!labelled)    { v = "Total"; labelled = true; }
         td.className = cellClass(c, i);
         td.textContent = v;
         t.appendChild(td);
@@ -1192,6 +1230,46 @@
     render();
   }
 
+  // Load every mapping workbook referenced by a `total: "band"` column.
+  function loadBandTables(){
+    var specs = (cfg.columns || []).filter(function(c){
+      return c && c.total === "band" && c.band && c.band.workbook;
+    });
+    if (!specs.length) return Promise.resolve();
+
+    return Promise.all(specs.map(function(c){
+      var b = c.band;
+      return loadWorkbook(b.workbook, b.sheet || "data").then(function(m){
+        var need = [b.label, b.value, b.min, b.max];
+        var missing = need.filter(function(n){ return m.columns.indexOf(n) === -1; });
+        if (missing.length){
+          baseWarn.push('band mapping for "' + c.column + '" has no column '
+                        + missing.join(", ") + " in " + b.workbook);
+          return;
+        }
+        var exclude = {};
+        (b.exclude || []).forEach(function(x){ exclude[String(x)] = 1; });
+
+        var list = [], byLabel = {};
+        m.rows.forEach(function(r){
+          if (r[b.label] == null || r[b.value] == null) return;
+          var e = {label: String(r[b.label]), value: +r[b.value],
+                   min: +r[b.min], max: +r[b.max], excluded: !!exclude[String(r[b.label])]};
+          list.push(e);
+          if (!byLabel[e.label]) byLabel[e.label] = e;   // first row wins on duplicates
+        });
+        if (!list.length){
+          baseWarn.push('band mapping for "' + c.column + '" is empty');
+          return;
+        }
+        BANDS[c.column] = {rows: list, byLabel: byLabel, source: m.source};
+      }).catch(function(err){
+        baseWarn.push('band mapping for "' + c.column + '" could not be read ('
+                      + err.message + ") — the Total cell will be blank");
+      });
+    }));
+  }
+
   function fail(msg){
     $("warn").textContent = msg;
     $("tbody").innerHTML = '<tr><td class="empty">Could not load the data.</td></tr>';
@@ -1210,7 +1288,8 @@
       resolveDataset();
       return loadWorkbook(DS.workbook, DS.sheetName);
     })
-    .then(function(data){ D = data; start(); })
+    .then(function(data){ D = data; return loadBandTables(); })
+    .then(function(){ start(); })
     .catch(function(err){
       fail("Could not read " + DS.workbook + " — " + err.message
            + ". The workbook must be reachable over http from this page;"
