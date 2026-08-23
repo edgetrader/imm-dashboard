@@ -27,14 +27,14 @@ To regenerate the data itself:
 ## Layout
 
 ```
-index.html                 the dashboard (self-contained CSS + JS, incl. an .xlsx reader)
-config/settings.json       everything configurable, with its own inline reference
-config/orr-mapping.xlsx    ORR grade -> order -> band, used by the Total row
-data/imm_data.xlsx         360 rows x 44 columns
-generate_imm_data.py       panel generator (spec -> xlsx)
-build_dashboard.py         optional JSON dump of the workbook (not used by the page)
-reference/                 the layout this is modelled on
-claude.md                  data specification + guidance for Claude Code
+index.html                           the dashboard (self-contained CSS + JS, incl. an .xlsx reader)
+config/settings.json                 everything configurable, with its own inline reference
+config/orr-mapping.xlsx              ORR grade -> order -> band, used by the Total row
+data/imm_data.xlsx                   360 rows x 44 columns
+generate_imm_data.py                 panel generator (spec -> xlsx)
+build_dashboard.py                   optional JSON dump of the workbook (not used by the page)
+reference/dashboard-screenshot.png   the layout this is modelled on
+claude.md                            data specification + guidance for Claude Code
 ```
 
 The server root must be the project root so `data/` and `config/` resolve. That is also a
