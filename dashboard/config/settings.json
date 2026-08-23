@@ -1,0 +1,233 @@
+{
+  "_readme": [
+    "Dashboard configuration. Edit, then refresh the browser \u2014 nothing to rebuild.",
+    "",
+    "HOW A COLUMN IS DEFINED \u2014 each entry in `columns` reads left to right:",
+    "   column    : the column name in imm_data.xlsx (this is what supplies the values)",
+    "   analytics : which analytics group it belongs to \u2014 this sets the header colour",
+    "   header    : the name shown on the dashboard ( | starts a new header line )",
+    "   format    : how the value is rendered",
+    "",
+    "The order of `columns` is the order shown on the dashboard. Delete a line to",
+    "drop that column; move a line to move the column.",
+    "",
+    "FORMATS   text  plain text          musd  USD millions   13,609M",
+    "          pct1  percent, 1 dp  1.3%  num2  2 decimals     1.22",
+    "          int   whole number    387  tick  green tick when the value is 1",
+    "",
+    "OPTIONAL PER COLUMN",
+    "   width     : relative column width (default depends on format)",
+    "   align     : left | center | right (default: first column left, tick centred, rest right)",
+    "   total     : sum | wavg | none \u2014 how the red Total row is computed",
+    "               (default: musd sums, other numbers are AUM-weighted, text/tick blank)",
+    "   showWhen  : { \"<xlsx column>\": value } \u2014 render the cell only when this matches",
+    "SORTING   click a header to sort by that column alone; click it again to flip.",
+    "          SHIFT-CLICK a header to add it as a further sort key (\u25bc then \u25b2 then",
+    "          removed). A small number on the arrow shows the key's priority.",
+    "          Blanks always sort last. `table.defaultSort` sets the opening order",
+    "          and accepts either one { column, direction } or a list of them.",
+    "",
+    "TABLE BLOCK",
+    "   aggregation     : wavg \u2014 averages weighted by dataset.weightColumn (AUM)",
+    "                     avg  \u2014 plain arithmetic mean",
+    "                     Sets the default for every numeric column; a column's own",
+    "                     `total` (sum | avg | wavg | none) still wins.",
+    "   defaultSort     : { \"column\": \"<xlsx column>\", \"direction\": \"asc\" | \"desc\" }",
+    "                     or [ {...}, {...} ] for a multi-column default",
+    "   pageSize        : rows per page at load \u2014 a number, or \"all\"",
+    "   pageSizeOptions : choices offered in the Rows per Page picker",
+    "   The Total row always covers every mandate in the selection, not just the page.",
+    "",
+    "",
+    "PER GROUP \u2014 every entry in `groups` may override the two lines above it:",
+    "   columns   : the xlsx column names this group shows, in display order",
+    "   analytics : { \"esg\": false } to hide a type, or",
+    "               { \"esg\": { \"colour\": \"#7A9AA8\", \"label\": \"Carbon\" } }",
+    "   title     : heading text (default: derived from the group name)",
+    "A group with no overrides shows the full `columns` list above."
+  ],
+  "dataset": {
+    "_note": "Which imm_data.xlsx columns drive the page furniture.",
+    "reportDateColumn": "report_date",
+    "groupColumn": "exco_view1_level1",
+    "idColumn": "mandate_id",
+    "weightColumn": "aum_usd"
+  },
+  "defaultReportMonth": "2026-06-30",
+  "table": {
+    "aggregation": "wavg",
+  "defaultSort": [
+    { "column": "kpi_in_scope", "direction": "desc" },
+    { "column": "aum_usd",      "direction": "desc" }
+  ],
+    "pageSize": 10,
+    "pageSizeOptions": [
+      5,
+      10,
+      25,
+      50,
+      100,
+      "all"
+    ]
+  },
+  "analytics": {
+    "base": {
+      "label": "Portfolio",
+      "colour": "#B0A99F"
+    },
+    "perf": {
+      "label": "Performance",
+      "colour": "#B0392E"
+    },
+    "peer": {
+      "label": "Peer Rank",
+      "colour": "#B0392E"
+    },
+    "risk": {
+      "label": "Risk",
+      "colour": "#B39140"
+    },
+    "esg": {
+      "label": "ESG",
+      "colour": "#9A9AC2"
+    },
+    "kpi": {
+      "label": "KPI",
+      "colour": "#7D9B87"
+    }
+  },
+  "columns": [
+    {
+      "column": "port_mandate_name",
+      "analytics": "base",
+      "header": "Portfolio",
+      "format": "text",
+      "width": 27.2
+    },
+    {
+      "column": "aum_usd",
+      "analytics": "base",
+      "header": "Gross AUM|(USD 'm)",
+      "format": "musd"
+    },
+    {
+      "column": "excess_rtn_ytd",
+      "analytics": "perf",
+      "header": "Excess|Return|(YTD)",
+      "format": "pct1"
+    },
+    {
+      "column": "port_rtn_ytd",
+      "analytics": "perf",
+      "header": "Portfolio|Return|(YTD)",
+      "format": "pct1"
+    },
+    {
+      "column": "excess_rtn_3y_ann",
+      "analytics": "perf",
+      "header": "Excess|Return (3Y)",
+      "format": "pct1"
+    },
+    {
+      "column": "port_rtn_3y_ann",
+      "analytics": "perf",
+      "header": "Portfolio|Return (3Y)",
+      "format": "pct1"
+    },
+    {
+      "column": "peer_rank_1y",
+      "analytics": "peer",
+      "header": "Peer Rank (1Y)",
+      "format": "int"
+    },
+    {
+      "column": "peer_rank_3y",
+      "analytics": "peer",
+      "header": "Peer Rank (3Y)",
+      "format": "int"
+    },
+    {
+      "column": "port_total_risk",
+      "analytics": "risk",
+      "header": "Active|Total Risk",
+      "format": "pct1"
+    },
+    {
+      "column": "relative_var_para",
+      "analytics": "risk",
+      "header": "Relative|VaR (Para)",
+      "format": "num2"
+    },
+    {
+      "column": "port_msci_carbon_emission",
+      "analytics": "esg",
+      "header": "Port|WACI",
+      "format": "int"
+    },
+    {
+      "column": "bmk_msci_carbon_emission",
+      "analytics": "esg",
+      "header": "Bmk|WACI",
+      "format": "int"
+    },
+    {
+      "column": "kpi_in_scope",
+      "analytics": "kpi",
+      "header": "KPI In|Scope",
+      "format": "tick"
+    },
+    {
+      "column": "reason",
+      "analytics": "kpi",
+      "header": "Reason for|KPI Exclusion",
+      "format": "text",
+      "showWhen": {
+        "kpi_in_scope": 0
+      }
+    }
+  ],
+  "groups": [
+    {
+      "group": "1a. Fixed Income - Total Return",
+      "analytics": {
+        "peer": false
+      }
+    },
+    {
+      "group": "1b. Fixed Income - Buy and Maintain",
+      "analytics": {
+        "peer": false
+      }
+    },
+    {
+      "group": "2. Global Equities",
+      "analytics": {
+        "peer": false
+      }
+    },
+    {
+      "group": "3. Local Equities",
+      "analytics": {
+        "peer": false
+      }
+    },
+    {
+      "group": "4. ILP",
+      "analytics": {
+        "perf": false
+      }
+    },
+    {
+      "group": "5a. Portfolio Solutions - Discretion",
+      "analytics": {
+        "peer": false
+      }
+    },
+    {
+      "group": "11. Others",
+      "analytics": {
+        "peer": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+# Python dependencies for the IMM dashboard project.
+#
+#   python3.11 -m venv .venv
+#   .venv/bin/pip install -r requirements.txt
+#
+# Needed only to regenerate data:
+#   .venv/bin/python generate_imm_data.py   ->  data/imm_data.xlsx
+#   .venv/bin/python build_dashboard.py     ->  dashboard/data.js
+#
+# Serving the dashboard needs no third-party packages at all — it is a static
+# page served by the standard library:
+#   python3.11 -m http.server 8321 --directory dashboard
+#
+# Requires Python 3.11+ (statistics.NormalDist.inv_cdf, and on this machine the
+# system python3 is a broken 3.7 — use /usr/local/bin/python3.11).
+#
+# Versions are pinned to the set this was built and verified against.
+# Minimums that should also work: numpy>=1.24, pandas>=2.0, openpyxl>=3.1.
+
+numpy==2.4.6        # AR(1) latent paths, vectorised quantile mapping
+pandas==3.0.5       # panel assembly, Excel read/write
+openpyxl==3.1.5     # the .xlsx engine pandas uses, and date number formats
+
+# Deliberately NOT required: scipy.
+# It may be present in .venv from an earlier install, but nothing imports it.
+# `from scipy.stats import ...` stalls for minutes on macOS while Gatekeeper
+# scans its many .so files, so generate_imm_data.py builds the truncated-normal
+# quantile from math.erf and statistics.NormalDist instead. Keep it that way.

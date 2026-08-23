@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IMM Dashboard</title>
+<style>
+  :root{
+    --row-odd:#F4F5F6; --row-even:#EAECEE; --ink:#2B2B2B;
+    --title:#B08D3F; --sel-row:#FFF8E8; --sel-border:#2E5AAC;
+    --check:#3D8B3D; --muted:#6B7078; --total-bg:#B0392E;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:#fff;color:var(--ink);
+    font:400 13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .page{max-width:1400px;margin:0 auto;padding:28px 40px 56px}
+
+  .top{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:22px}
+  h1{margin:0;font-size:32px;font-weight:700;letter-spacing:-.2px;color:var(--title)}
+  .pickers{display:flex;gap:12px;flex:0 0 auto}
+  .picker-sm{min-width:118px}
+  .picker{border:1px solid #C9CCD1;border-radius:6px;background:#fff;padding:6px 12px 7px;min-width:190px;position:relative}
+  .picker label{display:block;font-size:11px;color:var(--muted);margin-bottom:1px}
+  .picker select{-webkit-appearance:none;appearance:none;border:0;background:transparent;font:inherit;font-size:15px;color:var(--ink);width:100%;padding:0 20px 0 0;cursor:pointer;outline:none}
+  .picker::after{content:"";position:absolute;right:12px;bottom:15px;pointer-events:none;width:9px;height:9px;border-right:1.6px solid #6E737A;border-bottom:1.6px solid #6E737A;transform:rotate(45deg)}
+  .picker:focus-within{border-color:var(--sel-border);box-shadow:0 0 0 2px rgba(46,90,172,.15)}
+
+  .scroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;min-width:760px;table-layout:fixed}
+  thead th{color:#fff;font-weight:400;font-size:11.5px;line-height:1.25;height:56px;vertical-align:middle;padding:4px 10px;text-align:center}
+  thead th.a-left{text-align:left;padding-left:22px}
+
+  tbody td{height:25px;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  tbody tr:nth-child(odd) td{background:var(--row-odd)}
+  tbody tr:nth-child(even) td{background:var(--row-even)}
+  td.a-right,tfoot td.a-right{text-align:right;font-variant-numeric:tabular-nums}
+  td.a-left,tfoot td.a-left{text-align:left;padding-left:22px}
+  td.a-center{text-align:center}
+  td.f-tick{color:var(--check)}
+  td.f-text.a-right{font-size:11px;color:#4A4F56;padding-right:22px}
+  td.edge-r,tfoot td.edge-r{padding-right:22px}
+  td.clickable{cursor:pointer}
+
+  tbody tr.sel td{background:var(--sel-row);font-weight:700}
+  td.cell-sel{outline:2px solid var(--sel-border);outline-offset:-3px;border-radius:3px;font-weight:700}
+
+  tfoot td{background:var(--total-bg);color:#fff;font-weight:700;height:30px;padding:0 10px;white-space:nowrap}
+
+  thead th.sortable{cursor:pointer;-webkit-user-select:none;user-select:none}
+  thead th.sortable:hover{filter:brightness(1.07)}
+  thead th .arrow{font-size:9px;margin-left:4px;opacity:.95;white-space:nowrap}
+  thead th .arrow .idx{font-size:8px;vertical-align:2px;margin-right:1px}
+  thead th.sorted{font-weight:700}
+
+  .pager{display:flex;align-items:center;justify-content:space-between;gap:16px;
+         margin-top:12px;font-size:12px;color:var(--muted)}
+  .pager .btns{display:flex;gap:4px}
+  .pager button{font:inherit;color:var(--ink);background:#fff;border:1px solid #C9CCD1;
+                border-radius:4px;min-width:28px;height:26px;padding:0 8px;cursor:pointer}
+  .pager button:hover:not(:disabled){border-color:var(--sel-border);color:var(--sel-border)}
+  .pager button:disabled{opacity:.4;cursor:default}
+  .pager button.cur{background:var(--sel-border);border-color:var(--sel-border);color:#fff;font-weight:700}
+  .pager .gap{padding:0 2px;color:var(--muted)}
+  .pager .left{display:flex;align-items:center;gap:10px}
+  .pager .rpp{display:flex;align-items:center;gap:6px}
+  .pager .rpp select{font:inherit;color:var(--ink);background:#fff;border:1px solid #C9CCD1;
+                     border-radius:4px;height:26px;padding:0 6px;cursor:pointer}
+  .pager .rpp select:focus{outline:none;border-color:var(--sel-border);box-shadow:0 0 0 2px rgba(46,90,172,.15)}
+  .hint{margin-top:6px;font-size:11px;color:var(--muted)}
+  .pager:empty{display:none}
+
+  .foot{margin-top:14px;font-size:11.5px;color:var(--muted)}
+  .foot code{font-size:11px;background:#F1F2F4;padding:1px 5px;border-radius:3px}
+  .chip{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 4px 0 9px;vertical-align:baseline}
+  .warn{margin:0 0 16px;padding:9px 14px;border-radius:6px;background:#FDF3E2;border:1px solid #E6C98A;color:#7A5A16;font-size:12px}
+  .warn:empty{display:none}
+  .empty{padding:40px 22px;color:var(--muted);background:var(--row-odd)}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="top">
+    <h1 id="title">—</h1>
+    <div class="pickers">
+      <div class="picker"><label for="grp">Team</label><select id="grp"></select></div>
+      <div class="picker"><label for="mth">Report Month</label><select id="mth"></select></div>
+    </div>
+  </div>
+
+  <div class="warn" id="warn"></div>
+
+  <div class="scroll">
+    <table>
+      <colgroup id="cg"></colgroup>
+      <thead><tr id="thr"></tr></thead>
+      <tbody id="tbody"></tbody>
+      <tfoot id="tfoot"></tfoot>
+    </table>
+  </div>
+
+  <div class="pager" id="pager"></div>
+  <p class="hint" id="hint"></p>
+
+  <p class="foot" id="foot"></p>
+</div>
+
+<script src="data.js"></script>
+<script>
+(function(){
+  var D = window.IMM;
+  var $ = function(id){ return document.getElementById(id); };
+  var isArr = function(x){ return Object.prototype.toString.call(x) === "[object Array]"; };
+
+  // Used only when config/settings.json cannot be fetched (e.g. opened over file://).
+  var FALLBACK = {
+    dataset: {reportDateColumn:"report_date", groupColumn:"exco_view1_level1",
+              idColumn:"mandate_id", weightColumn:"aum_usd"},
+    analytics: {
+      base: {label:"Portfolio",   colour:"#B0A99F"},
+      perf: {label:"Performance", colour:"#B0392E"},
+      risk: {label:"Risk",        colour:"#B39140"},
+      esg:  {label:"ESG",         colour:"#9A9AC2"},
+      kpi:  {label:"KPI",         colour:"#7D9B87"}
+    },
+    columns: [
+      {column:"port_mandate_name",         analytics:"base", header:"Portfolio",                format:"text", width:27.2},
+      {column:"aum_usd",                   analytics:"base", header:"Gross AUM|(USD 'm)",       format:"musd"},
+      {column:"excess_rtn_ytd",            analytics:"perf", header:"Excess|Return|(YTD)",      format:"pct1"},
+      {column:"port_rtn_ytd",              analytics:"perf", header:"Portfolio|Return|(YTD)",   format:"pct1"},
+      {column:"excess_rtn_3y_ann",         analytics:"perf", header:"Excess|Return (3Y)",       format:"pct1"},
+      {column:"port_rtn_3y_ann",           analytics:"perf", header:"Portfolio|Return (3Y)",    format:"pct1"},
+      {column:"port_total_risk",           analytics:"risk", header:"Active|Total Risk",        format:"pct1"},
+      {column:"relative_var_para",         analytics:"risk", header:"Relative|VaR (Para)",      format:"num2"},
+      {column:"port_msci_carbon_emission", analytics:"esg",  header:"Port|WACI",                format:"int"},
+      {column:"bmk_msci_carbon_emission",  analytics:"esg",  header:"Bmk|WACI",                 format:"int"},
+      {column:"kpi_in_scope",              analytics:"kpi",  header:"KPI In|Scope",             format:"tick"},
+      {column:"reason",                    analytics:"kpi",  header:"Reason for|KPI Exclusion", format:"text",
+       showWhen:{kpi_in_scope:0}}
+    ],
+    groups: null
+  };
+
+  var FMT = {
+    text: function(v){ return v == null ? "" : String(v); },
+    musd: function(v){ return v == null ? "" : Math.round(v/1e6).toLocaleString("en-US") + "M"; },
+    pct1: function(v){ return v == null ? "" : (v*100).toFixed(1) + "%"; },
+    num2: function(v){ return v == null ? "" : Number(v).toFixed(2); },
+    int:  function(v){ return v == null ? "" : Math.round(v).toLocaleString("en-US"); },
+    tick: function(v){ return Number(v) === 1 ? "✓" : ""; }
+  };
+  // Per-format defaults, so a column entry only needs column/analytics/header/format.
+  // `total:"agg"` means "use table.aggregation" (avg or wavg).
+  var DEF = {
+    text: {width:12.5, align:"right",  total:"none"},
+    musd: {width:8.5,  align:"right",  total:"sum"},
+    pct1: {width:6.2,  align:"right",  total:"agg"},
+    num2: {width:6.2,  align:"right",  total:"agg"},
+    int:  {width:5.0,  align:"right",  total:"agg"},
+    tick: {width:4.6,  align:"center", total:"none"}
+  };
+  var PAGE_OPTS = [5, 10, 25, 50, 100, "all"];
+
+  var cfg, DS, TBL, groups, cols, baseWarn = [], warn = [], sel = null;
+  var sortKeys = [], page = 1, pageSize = 10;   // sortKeys: [{col, dir}] in priority order
+
+  function norm(x){ return String(x).toLowerCase().replace(/\s+/g, " ").trim(); }
+  function def(c, prop){
+    if (c[prop] != null) return c[prop];
+    return (DEF[c.format] || DEF.text)[prop];
+  }
+
+  function vals(rows, key){
+    return rows.map(function(r){ return r[key]; }).filter(function(x){ return x != null; });
+  }
+  function mean(rows, key){
+    var v = vals(rows, key);
+    return v.length ? v.reduce(function(a,b){ return a+b; }, 0) / v.length : null;
+  }
+  // AUM-weighted mean. Only positive weights count — the dataset permits
+  // negative AUM, which would otherwise invert the average. Falls back to a
+  // simple mean when no row carries positive weight.
+  function wmean(rows, key){
+    var num = 0, den = 0, W = DS.weightColumn;
+    rows.forEach(function(r){
+      var w = r[W] > 0 ? r[W] : 0;
+      if (r[key] != null){ num += w * r[key]; den += w; }
+    });
+    return den > 0 ? num / den : mean(rows, key);
+  }
+  function aggregate(rows, key, how){
+    if (how === "agg") how = TBL.aggregation;
+    if (how === "sum")  return rows.reduce(function(a, r){ return a + (r[key] || 0); }, 0);
+    if (how === "avg")  return mean(rows, key);
+    if (how === "wavg") return wmean(rows, key);
+    return null;
+  }
+  function aggLabel(){
+    return TBL.aggregation === "avg" ? "simple averages" : "AUM-weighted averages";
+  }
+
+  // Sort on the underlying value, never the formatted string. Blanks sort last
+  // in both directions.
+  function cmpVal(x, y, dir){
+    var xn = (x === null || x === undefined || x === "");
+    var yn = (y === null || y === undefined || y === "");
+    if (xn || yn) return xn && yn ? 0 : (xn ? 1 : -1);
+    if (typeof x === "number" && typeof y === "number") return dir * (x - y);
+    return dir * String(x).localeCompare(String(y), undefined, {numeric: true});
+  }
+  // Keys are applied in priority order: the first that separates two rows wins.
+  function sorter(keys){
+    return function(a, b){
+      for (var i = 0; i < keys.length; i++){
+        var r = cmpVal(a[keys[i].col], b[keys[i].col], keys[i].dir);
+        if (r) return r;
+      }
+      return 0;
+    };
+  }
+  function keyIndex(col){
+    for (var i = 0; i < sortKeys.length; i++) if (sortKeys[i].col === col) return i;
+    return -1;
+  }
+
+  function analyticsBlock(){ return cfg.analytics || FALLBACK.analytics; }
+  function columnList(){ return cfg.columns || FALLBACK.columns; }
+
+  function columnIndex(){
+    var idx = {};
+    columnList().forEach(function(c){
+      if (c && c.column) idx[norm(c.column)] = c;
+    });
+    return idx;
+  }
+  var IDX;
+
+  // table.defaultSort accepts one {column,direction} or an array of them.
+  function applyDefaultSort(){
+    var d = TBL.defaultSort;
+    var list = isArr(d) ? d : (d ? [d] : []);
+    sortKeys = [];
+    list.forEach(function(k){
+      if (!k || !k.column) return;
+      if (D.columns.indexOf(k.column) === -1){
+        baseWarn.push('table.defaultSort column "' + k.column + '" is not in ' + D.source);
+        return;
+      }
+      sortKeys.push({col: k.column, dir: (k.direction === "asc") ? 1 : -1});
+    });
+    if (!sortKeys.length) sortKeys = [{col: DS.weightColumn, dir: -1}];
+  }
+
+  function normGroups(){
+    var raw = cfg.groups, byKey = {};
+    D.groups.forEach(function(g){ byKey[g.key] = g; });
+    if (!isArr(raw) || !raw.length)
+      return D.groups.map(function(g){ return {key:g.key, label:g.label}; });
+
+    var out = [];
+    raw.forEach(function(e){
+      if (!e || !e.group) return;
+      if (!byKey[e.group]){
+        baseWarn.push('group "' + e.group + '" is not present in ' + D.source);
+        return;
+      }
+      out.push({key: e.group, label: e.title || byKey[e.group].label,
+                pick: e.columns || null, ov: e.analytics || null});
+    });
+    if (!out.length){
+      baseWarn.push("no configured group matched the data — showing all groups");
+      return D.groups.map(function(g){ return {key:g.key, label:g.label}; });
+    }
+    return out;
+  }
+
+  // Global analytics block with this group's overrides merged over the top.
+  function effAnalytics(ov){
+    var base = analyticsBlock(), out = {};
+    Object.keys(base).forEach(function(k){
+      if (k.charAt(0) === "_") return;
+      out[k] = {label: base[k].label || k, show: base[k].show !== false,
+                colour: base[k].colour || "#B0A99F"};
+    });
+    if (!ov) return out;
+    Object.keys(ov).forEach(function(k){
+      if (k.charAt(0) === "_") return;
+      if (!out[k]){ warn.push('unknown analytics group "' + k + '"'); return; }
+      var o = ov[k];
+      if (typeof o === "boolean"){ out[k].show = o; return; }
+      if (o && typeof o === "object"){
+        if ("show" in o)  out[k].show   = o.show !== false;
+        if (o.colour)     out[k].colour = o.colour;
+        if (o.label)      out[k].label  = o.label;
+      }
+    });
+    return out;
+  }
+
+  function pickColumns(an, pick){
+    var chosen;
+    if (isArr(pick) && pick.length){
+      // Explicit list wins over analytics show/hide; order follows the list.
+      chosen = [];
+      pick.forEach(function(nm){
+        var c = IDX[norm(nm)];
+        if (!c){ warn.push('column "' + nm + '" is not defined in `columns`'); return; }
+        if (chosen.indexOf(c) === -1) chosen.push(c);
+      });
+      if (!chosen.length){
+        warn.push("no column in the group list matched — showing the full column list");
+        chosen = null;
+      }
+    }
+    if (!chosen){
+      chosen = columnList().filter(function(c){
+        return c && c.column && (c.analytics === "base" || (an[c.analytics] && an[c.analytics].show));
+      });
+    }
+    return chosen.filter(function(c){
+      if (!an[c.analytics]){
+        warn.push('column "' + c.column + '" has unknown analytics group "' + c.analytics + '"');
+        return false;
+      }
+      if (D.columns.indexOf(c.column) === -1){
+        warn.push('column "' + c.column + '" is not in ' + D.source);
+        return false;
+      }
+      return true;
+    });
+  }
+
+  function buildHead(an){
+    var total = cols.reduce(function(a,c){ return a + def(c, "width"); }, 0);
+    var cg = $("cg"), thr = $("thr");
+    cg.innerHTML = ""; thr.innerHTML = "";
+    cols.forEach(function(c, i){
+      var col = document.createElement("col");
+      col.style.width = (def(c, "width") / total * 100).toFixed(3) + "%";
+      cg.appendChild(col);
+
+      var th = document.createElement("th");
+      th.style.backgroundColor = an[c.analytics].colour;
+      var cl = ["sortable"];
+      if (align(c, i) === "left") cl.push("a-left");
+      var ki = keyIndex(c.column);
+      if (ki !== -1) cl.push("sorted");
+      th.className = cl.join(" ");
+      th.dataset.col = c.column;
+      String(c.header == null ? c.column : c.header).split("|").forEach(function(line, j){
+        if (j) th.appendChild(document.createElement("br"));
+        th.appendChild(document.createTextNode(line.trim()));
+      });
+      if (ki !== -1){
+        var ar = document.createElement("span");
+        ar.className = "arrow";
+        if (sortKeys.length > 1){
+          var ix = document.createElement("span");
+          ix.className = "idx"; ix.textContent = String(ki + 1);
+          ar.appendChild(ix);
+        }
+        ar.appendChild(document.createTextNode(sortKeys[ki].dir === 1 ? "▲" : "▼"));
+        th.appendChild(ar);
+      }
+      thr.appendChild(th);
+    });
+  }
+
+  function align(c, i){ return c.align || (i === 0 ? "left" : def(c, "align")); }
+
+  function visible(c, r){
+    if (!c.showWhen) return true;
+    return Object.keys(c.showWhen).every(function(k){ return r[k] === c.showWhen[k]; });
+  }
+
+  function cellClass(c, i){
+    var cl = ["a-" + align(c, i), "f-" + c.format];
+    if (i === cols.length - 1 || c.format === "musd") cl.push("edge-r");
+    return cl.join(" ");
+  }
+
+  function render(){
+    var gKey = $("grp").value, m = $("mth").value;
+    var entry = groups.filter(function(g){ return g.key === gKey; })[0] || groups[0];
+
+    warn = [];
+    var an = effAnalytics(entry.ov);
+    cols = pickColumns(an, entry.pick);
+    buildHead(an);
+    $("title").textContent = entry.label;
+
+    // Drop sort keys whose column this group does not show; if none survive,
+    // fall back to the configured default, then to the first visible column.
+    var shownCols = {};
+    cols.forEach(function(c){ shownCols[c.column] = 1; });
+    sortKeys = sortKeys.filter(function(k){ return shownCols[k.col]; });
+    if (!sortKeys.length){
+      applyDefaultSort();
+      sortKeys = sortKeys.filter(function(k){ return shownCols[k.col]; });
+      if (!sortKeys.length && cols.length) sortKeys = [{col: cols[0].column, dir: -1}];
+    }
+
+    var all = D.rows.filter(function(r){
+      return r[DS.groupColumn] === gKey && r[DS.reportDateColumn] === m;
+    });
+    if (sortKeys.length) all = all.slice().sort(sorter(sortKeys));
+
+    // Totals always cover the whole selection, never just the visible page.
+    var pages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(all.length / pageSize));
+    if (page > pages) page = pages;
+    var from = pageSize === "all" ? 0 : (page - 1) * pageSize;
+    var rows = pageSize === "all" ? all : all.slice(from, from + pageSize);
+
+    var tbody = $("tbody"), tfoot = $("tfoot");
+    tbody.innerHTML = ""; tfoot.innerHTML = "";
+
+    if (!all.length){
+      var tr0 = document.createElement("tr"), td0 = document.createElement("td");
+      td0.className = "empty"; td0.colSpan = Math.max(cols.length, 1);
+      td0.textContent = "No mandates for this selection.";
+      tr0.appendChild(td0); tbody.appendChild(tr0);
+      $("pager").innerHTML = "";
+    } else {
+      rows.forEach(function(r){
+        var id = r[DS.idColumn];
+        var tr = document.createElement("tr");
+        if (sel && sel.id === id) tr.className = "sel";
+        cols.forEach(function(c, i){
+          var td = document.createElement("td");
+          td.className = cellClass(c, i);
+          td.textContent = visible(c, r) ? (FMT[c.format] || FMT.text)(r[c.column]) : "";
+          if (def(c, "total") !== "none"){
+            td.classList.add("clickable");
+            td.dataset.id = id; td.dataset.k = c.column;
+            if (sel && sel.id === id && sel.k === c.column) td.classList.add("cell-sel");
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+
+      var t = document.createElement("tr"), labelled = false;
+      cols.forEach(function(c, i){
+        var td = document.createElement("td"), v = "", how = def(c, "total");
+        if (how !== "none")    v = (FMT[c.format] || FMT.text)(aggregate(all, c.column, how));
+        else if (!labelled)  { v = "Total"; labelled = true; }
+        td.className = cellClass(c, i);
+        td.textContent = v;
+        t.appendChild(td);
+      });
+      tfoot.appendChild(t);
+    }
+
+    var live = {};
+    cols.forEach(function(c){ live[c.analytics] = 1; });
+    var chips = Object.keys(an).filter(function(k){ return k !== "base" && live[k]; })
+      .map(function(k){
+        return '<span class="chip" style="background:' + an[k].colour + '"></span>' + an[k].label;
+      }).join("");
+
+    var scopeCol = "kpi_in_scope", scope = "";
+    if (D.columns.indexOf(scopeCol) !== -1)
+      scope = " · " + all.filter(function(r){ return r[scopeCol] === 1; }).length + " in KPI scope";
+
+    drawPager(all.length, pages, from, rows.length);
+
+    $("foot").innerHTML =
+      all.length + " mandates" + scope + " · " + cols.length + " columns · Total row uses "
+      + aggLabel() + " over all " + all.length + " mandates (AUM itself is summed)"
+      + " · source <code>" + D.source + "</code>, built " + D.generated
+      + "<br>Analytics shown for " + entry.label + ":" + (chips || " none")
+      + ((entry.ov || entry.pick) ? " <em>(per-group override)</em>" : "");
+
+    var names = sortKeys.map(function(k, n){
+      var c = null;
+      cols.forEach(function(x){ if (x.column === k.col) c = x; });
+      var nm = c ? String(c.header == null ? c.column : c.header).split("|").join(" ") : k.col;
+      return (sortKeys.length > 1 ? (n + 1) + ". " : "") + nm + " " + (k.dir === 1 ? "▲" : "▼");
+    }).join("   ");
+    $("hint").textContent = "Sorted by " + names
+      + "   ·   click a header to sort by it, shift-click to add another column";
+
+    var msgs = baseWarn.concat(warn);
+    $("warn").textContent = msgs.length ? "config/settings.json: " + msgs.join(" · ") : "";
+  }
+
+  function pageBtn(label, target, opts){
+    var b = document.createElement("button");
+    b.textContent = label;
+    if (opts && opts.cur) b.className = "cur";
+    if (opts && opts.disabled) b.disabled = true;
+    else b.addEventListener("click", function(){ page = target; sel = null; render(); });
+    return b;
+  }
+
+  function drawPager(total, pages, from, shown){
+    var el = $("pager");
+    el.innerHTML = "";
+    if (!total) return;
+
+    var left = document.createElement("div");
+    left.className = "left";
+
+    var rpp = document.createElement("div");
+    rpp.className = "rpp";
+    var lab = document.createElement("label");
+    lab.setAttribute("for", "pgs");
+    lab.textContent = "Rows per page";
+    var sel2 = document.createElement("select");
+    sel2.id = "pgs";
+    TBL.pageSizeOptions.forEach(function(n){
+      var o = document.createElement("option");
+      o.value = String(n); o.textContent = (n === "all") ? "All" : String(n);
+      sel2.appendChild(o);
+    });
+    sel2.value = String(pageSize);
+    sel2.addEventListener("change", function(){
+      pageSize = sel2.value === "all" ? "all" : parseInt(sel2.value, 10);
+      page = 1; sel = null; render();
+    });
+    rpp.appendChild(lab); rpp.appendChild(sel2);
+    left.appendChild(rpp);
+
+    var info = document.createElement("span");
+    info.textContent = "Showing " + (from + 1) + "–" + (from + shown) + " of " + total
+                     + " mandate" + (total === 1 ? "" : "s");
+    left.appendChild(info);
+    el.appendChild(left);
+
+    if (pages <= 1) return;
+
+    var btns = document.createElement("div");
+    btns.className = "btns";
+    btns.appendChild(pageBtn("‹", page - 1, {disabled: page === 1}));
+
+    var nums = [];
+    if (pages <= 7){ for (var i = 1; i <= pages; i++) nums.push(i); }
+    else {
+      nums.push(1);
+      var lo = Math.max(2, page - 1), hi = Math.min(pages - 1, page + 1);
+      if (lo > 2) nums.push("…");
+      for (var j = lo; j <= hi; j++) nums.push(j);
+      if (hi < pages - 1) nums.push("…");
+      nums.push(pages);
+    }
+    nums.forEach(function(n){
+      if (n === "…"){
+        var g = document.createElement("span"); g.className = "gap"; g.textContent = "…";
+        btns.appendChild(g);
+      } else btns.appendChild(pageBtn(String(n), n, {cur: n === page}));
+    });
+
+    btns.appendChild(pageBtn("›", page + 1, {disabled: page === pages}));
+    el.appendChild(btns);
+  }
+
+  // Click a header to sort by it alone (clicking the sorted one flips direction).
+  // Shift-click builds a multi-column sort: add ▼, shift-click again for ▲,
+  // once more to drop that key.
+  $("thr").addEventListener("click", function(e){
+    var th = e.target.closest("th");
+    if (!th || !th.dataset.col) return;
+    var col = th.dataset.col, i = keyIndex(col);
+
+    if (e.shiftKey){
+      if (i === -1) sortKeys.push({col: col, dir: -1});
+      else if (sortKeys[i].dir === -1) sortKeys[i].dir = 1;
+      else sortKeys.splice(i, 1);
+      if (!sortKeys.length) applyDefaultSort();
+    } else {
+      if (i !== -1 && sortKeys.length === 1) sortKeys[0].dir = -sortKeys[0].dir;
+      else sortKeys = [{col: col, dir: -1}];
+    }
+    page = 1; sel = null; render();
+  });
+
+  $("tbody").addEventListener("click", function(e){
+    var td = e.target.closest("td");
+    if (!td || !td.dataset.k) return;
+    sel = (sel && sel.id === td.dataset.id && sel.k === td.dataset.k)
+        ? null : {id: td.dataset.id, k: td.dataset.k};
+    render();
+  });
+
+  function start(){
+    DS = {};
+    var d = cfg.dataset || {};
+    DS.reportDateColumn = d.reportDateColumn || D.dateColumn  || "report_date";
+    DS.groupColumn      = d.groupColumn      || D.groupColumn || "exco_view1_level1";
+    DS.idColumn         = d.idColumn         || "mandate_id";
+    DS.weightColumn     = d.weightColumn     || "aum_usd";
+    ["reportDateColumn","groupColumn","idColumn","weightColumn"].forEach(function(k){
+      if (D.columns.indexOf(DS[k]) === -1)
+        baseWarn.push('dataset.' + k + ' "' + DS[k] + '" is not in ' + D.source);
+    });
+
+    var tb = cfg.table || {};
+    TBL = {
+      aggregation: (tb.aggregation === "avg") ? "avg" : "wavg",
+      defaultSort: tb.defaultSort || null,
+      pageSize: tb.pageSize == null ? 10 : tb.pageSize,
+      pageSizeOptions: isArr(tb.pageSizeOptions) && tb.pageSizeOptions.length
+                       ? tb.pageSizeOptions : PAGE_OPTS
+    };
+    if (tb.aggregation && tb.aggregation !== "avg" && tb.aggregation !== "wavg")
+      baseWarn.push('table.aggregation "' + tb.aggregation + '" is not avg or wavg — using wavg');
+
+    IDX = columnIndex();
+    groups = normGroups();
+
+    pageSize = TBL.pageSize;
+    if (TBL.pageSizeOptions.indexOf(pageSize) === -1)
+      TBL.pageSizeOptions = [pageSize].concat(TBL.pageSizeOptions);
+
+    applyDefaultSort();
+
+    var grpEl = $("grp"), mthEl = $("mth");
+    groups.forEach(function(g){
+      var o = document.createElement("option"); o.value = g.key; o.textContent = g.label;
+      grpEl.appendChild(o);
+    });
+    D.months.forEach(function(m){
+      var o = document.createElement("option"); o.value = m.key; o.textContent = m.label;
+      mthEl.appendChild(o);
+    });
+
+    var dg = cfg.defaultGroup, dm = cfg.defaultReportMonth;
+    grpEl.value = (dg && groups.some(function(g){ return g.key === dg; })) ? dg : groups[0].key;
+    mthEl.value = (dm && D.months.some(function(m){ return m.key === dm; })) ? dm : D.months[0].key;
+
+    grpEl.addEventListener("change", function(){ sel = null; page = 1; render(); });
+    mthEl.addEventListener("change", function(){ sel = null; page = 1; render(); });
+    render();
+  }
+
+  fetch("config/settings.json", {cache: "no-store"})
+    .then(function(res){ if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
+    .then(function(json){ cfg = json; })
+    .catch(function(err){
+      cfg = FALLBACK;
+      baseWarn.push("could not be loaded (" + err.message + ") — using built-in defaults; serve the dashboard folder over http to enable it");
+    })
+    .then(start);
+})();
+</script>
+</body>
+</html>

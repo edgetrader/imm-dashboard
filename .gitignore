@@ -1,0 +1,15 @@
+# Python virtual environment (241 MB, platform-specific — rebuild from requirements.txt)
+.venv/
+venv/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
+
+# Editor / OS cruft
+*.swp
+.idea/
+.vscode/
