@@ -260,6 +260,28 @@
     return null;
   }
 
+  // Share of weight whose value is one of `share.values` — e.g. the percentage
+  // of AUM rated 1 or 2. Rows with no value are ignored entirely, so they sit
+  // in neither the numerator nor the denominator.
+  function shareAggregate(rows, c){
+    var want = {}, spec = c.share || {};
+    (spec.values || []).forEach(function(v){ want[String(v)] = 1; });
+    if (!Object.keys(want).length){
+      warn.push('column "' + c.column + '" uses total:"share" but lists no `share.values`');
+      return null;
+    }
+    var W = DS.weightColumn, hit = 0, tot = 0;
+    rows.forEach(function(r){
+      var v = r[c.column];
+      if (v == null || v === "" || !visible(c, r)) return;   // no rank: ignored
+      var w = r[W] > 0 ? r[W] : 0;                           // only positive weight counts
+      if (!w) return;
+      tot += w;
+      if (want[String(v)]) hit += w;
+    });
+    return tot > 0 ? hit / tot : null;
+  }
+
   // Aggregate a coded column (e.g. an ORR grade) through a mapping table:
   // translate each label to its numeric `order`, take the weighted mean of
   // those, then read back which band the result falls into and show that
@@ -664,6 +686,10 @@
       cols.forEach(function(c, i){
         var td = document.createElement("td"), v = "", how = def(c, "total");
         if (how === "band")      v = FMT.text(bandAggregate(all, c));
+        else if (how === "share"){
+          var sf = FMT[(c.share || {}).format] || FMT.pct1;
+          v = sf(shareAggregate(all, c));
+        }
         else if (how !== "none") v = (FMT[c.format] || FMT.text)(aggregate(all, c.column, how));
         else if (!labelled)    { v = "Total"; labelled = true; }
         td.className = cellClass(c, i);

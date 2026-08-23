@@ -50,7 +50,8 @@
     "                let it wrap too.",
     "     align      left | center | right.  Default: first column left, tick centred,",
     "                everything else right.",
-    "     total      sum | avg | wavg | band | none \u2014 how this column's Total cell is",
+    "     total      sum | avg | wavg | band | share | none \u2014 how this column's Total",
+    "                cell is computed.",
     "                computed.  Default: musd sums, other numbers use table.aggregation,",
     "                text and tick stay blank.",
     "     band       used with total:\"band\" for a coded column such as an ORR grade.",
@@ -61,6 +62,11 @@
     "                Bands are lower-inclusive and scanned in file order, so the first",
     "                matching row wins.  Labels in `exclude` carry no weight.",
     "                tick stay blank.",
+    "     share      used with total:\"share\": the percentage of weight whose value is",
+    "                one of `values`. Rows with no value are ignored entirely \u2014 they",
+    "                sit in neither the numerator nor the denominator \u2014 and only",
+    "                positive weight counts, as everywhere else.",
+    "                { \"values\": [1, 2], \"format\": \"pct1\" }",
     "     showWhen   { \"<workbook column>\": value } \u2014 show the cell only when this",
     "                matches, e.g. an exclusion reason only for excluded mandates.",
     "",
@@ -195,13 +201,29 @@
       "column": "peer_rank_1y",
       "analytics": "peer",
       "header": "Peer Rank|(1Y)",
-      "format": "int"
+      "format": "int",
+      "total": "share",
+      "share": {
+        "values": [
+          1,
+          2
+        ],
+        "format": "pct1"
+      }
     },
     {
       "column": "peer_rank_3y",
       "analytics": "peer",
       "header": "Peer Rank|(3Y)",
-      "format": "int"
+      "format": "int",
+      "total": "share",
+      "share": {
+        "values": [
+          1,
+          2
+        ],
+        "format": "pct1"
+      }
     },
     {
       "column": "total_risk_dd",
