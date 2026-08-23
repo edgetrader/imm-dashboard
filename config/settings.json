@@ -50,8 +50,16 @@
     "                let it wrap too.",
     "     align      left | center | right.  Default: first column left, tick centred,",
     "                everything else right.",
-    "     total      sum | avg | wavg | none \u2014 how this column's Total cell is computed.",
-    "                Default: musd sums, other numbers use table.aggregation, text and",
+    "     total      sum | avg | wavg | band | none \u2014 how this column's Total cell is",
+    "                computed.  Default: musd sums, other numbers use table.aggregation,",
+    "                text and tick stay blank.",
+    "     band       used with total:\"band\" for a coded column such as an ORR grade.",
+    "                Each label is translated to its numeric `value` through a mapping",
+    "                workbook, the weighted mean of those is taken, and the band that",
+    "                the result falls into supplies the label shown in the Total cell.",
+    "                { workbook, sheet, label, value, min, max, exclude: [...] }",
+    "                Bands are lower-inclusive and scanned in file order, so the first",
+    "                matching row wins.  Labels in `exclude` carry no weight.",
     "                tick stay blank.",
     "     showWhen   { \"<workbook column>\": value } \u2014 show the cell only when this",
     "                matches, e.g. an exclusion reason only for excluded mandates.",
@@ -217,7 +225,19 @@
       "column": "fund_orr",
       "analytics": "risk2",
       "header": "ORR",
-      "format": "text"
+      "format": "text",
+      "total": "band",
+      "band": {
+        "workbook": "config/orr-mapping.xlsx",
+        "sheet": "data",
+        "label": "fund_orr",
+        "value": "order",
+        "min": "range_min",
+        "max": "range_max",
+        "exclude": [
+          "NR"
+        ]
+      }
     },
     {
       "column": "port_msci_carbon_emission",

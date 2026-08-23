@@ -27,13 +27,14 @@ To regenerate the data itself:
 ## Layout
 
 ```
-index.html                 the dashboard (self-contained CSS + JS, incl. an .xlsx reader)
-config/settings.json       everything configurable, with its own inline reference
-data/imm_data.xlsx         360 rows x 44 columns
-generate_imm_data.py       panel generator (spec -> xlsx)
-build_dashboard.py         optional JSON dump of the workbook (not used by the page)
-reference/                 the layout this is modelled on
-claude.md                  data specification + guidance for Claude Code
+index.html                           the dashboard (self-contained CSS + JS, incl. an .xlsx reader)
+config/settings.json                 everything configurable, with its own inline reference
+config/orr-mapping.xlsx              ORR grade -> order -> band, used by the Total row
+data/imm_data.xlsx                   360 rows x 44 columns
+generate_imm_data.py                 panel generator (spec -> xlsx)
+build_dashboard.py                   optional JSON dump of the workbook (not used by the page)
+reference/dashboard-screenshot.png   the layout this is modelled on
+CLAUDE.md                            data specification + guidance for Claude Code
 ```
 
 The server root must be the project root so `data/` and `config/` resolve. That is also a
@@ -51,12 +52,12 @@ function, so every field still matches its specified marginal distribution exact
 report date. Month-over-month correlation runs 0.90 (YTD returns) to 0.98 (AUM, 3-year
 returns). Generation is seeded (`--seed 42`) and reproducible.
 
-Column distributions are defined in [claude.md](claude.md).
+Column distributions are defined in [CLAUDE.md](CLAUDE.md).
 
 > **These are synthetic numbers with known artefacts.** `excess_rtn_*` does not reconcile
 > to portfolio minus benchmark, heavily truncated fields do not reproduce their stated mean
 > and standard deviation, `aum_usd` can be negative, and the risk columns render far larger
-> than the reference screenshot suggests. See *Known data caveats* in [claude.md](claude.md).
+> than the reference screenshot suggests. See *Known data caveats* in [CLAUDE.md](CLAUDE.md).
 
 ## Using the dashboard
 
@@ -66,7 +67,11 @@ Column distributions are defined in [claude.md](claude.md).
   blank, and blanks always sort last.
 - **Paginate** — the rows-per-page select and pager sit under the table. The **Total row
   always covers the whole selection**, not just the visible page.
+- **Resize** — drag a header edge; double-click the handle to reset. Remembered per browser.
 - **Inspect** — click any numeric cell to highlight it and its row.
+
+The Report Month picker lists newest first and opens on the latest month
+(`table.monthOrder`, `defaultReportMonth`).
 
 ## Configuring
 
@@ -80,7 +85,7 @@ Everything lives in [`config/settings.json`](config/settings.json), which carrie
 | `analytics` | a colour and label per analytics group |
 | `columns` | which workbook columns appear, in what order, with what header and format |
 | `groups` | the Team picker, and per-team overrides |
-| `table` | aggregation, default sort, paging, default column width |
+| `table` | aggregation, default sort, paging, report-month order |
 
 ### Columns
 
@@ -115,10 +120,39 @@ wins over analytics show/hide, and may only name columns already defined above.
 
 ### Column widths
 
-By default every column **measures itself** — the widest of its header lines, its formatted
-values, and its Total cell. Spare table width goes to a single `flex` column (the first by
-default) rather than inflating every column. `table.defaultWidth: "format"` restores fixed
-per-format weights, and an explicit `width` on any column always wins.
+Columns size themselves to the data on screen. Each render lays the table out once and lets
+the browser measure it — text columns wrap, numbers never do — then pins the result. Nothing
+is configured, and nothing is estimated.
+
+You can **drag any header edge** to resize a column; double-click the handle to reset it, or
+use the "reset resized columns" link under the table. Dragged widths are remembered in your
+browser and survive team switches, sorting and reload.
+
+If you do want to fix one, `"width": 240` on a column sets it in px, and `"flex": true`
+makes that column swallow any width the table has spare instead of the browser sharing it.
+
+### Aggregating a coded column
+
+A column of grade codes can't be averaged as text. `total: "band"` translates each label to
+a number through a mapping workbook, takes the AUM-weighted mean, then reads back which band
+the result falls into:
+
+    grade -> order -> weighted mean -> band lookup -> grade
+
+```json
+{ "column": "fund_orr", "header": "ORR", "format": "text", "total": "band",
+  "band": { "workbook": "config/orr-mapping.xlsx", "sheet": "data",
+            "label": "fund_orr", "value": "order",
+            "min": "range_min", "max": "range_max", "exclude": ["NR"] } }
+```
+
+Bands are lower-inclusive and scanned in file order, so the first matching row wins. Labels
+in `exclude` carry no weight — `NR` is excluded because "not rated" is a missing assessment
+rather than a poor rating. The mapping lives in
+[`config/orr-mapping.xlsx`](config/orr-mapping.xlsx) so it stays editable in Excel.
+
+> The `order` scale is non-linear, so the aggregate is dominated by the worst holdings by
+> design: a team of mostly `3+` mandates can total `4+`.
 
 ### Pointing at a different workbook
 

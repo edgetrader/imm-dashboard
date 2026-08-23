@@ -13,3 +13,7 @@ __pycache__/
 *.swp
 .idea/
 .vscode/
+
+# Source photos of reference material — the extracted data is committed instead
+reference/*.HEIC
+reference/*.heic

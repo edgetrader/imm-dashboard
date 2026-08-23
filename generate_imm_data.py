@@ -1,6 +1,6 @@
 """Synthetic IMM panel generator.
 
-Implements the specification in claude.md, restricted to a balanced sample:
+Implements the specification in CLAUDE.md, restricted to a balanced sample:
 `--per-group` mandates for each exco_view1_level1 category, one row per mandate
 per report_date.
 
