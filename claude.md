@@ -6,9 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A synthetic investment-mandate monitoring (IMM) panel and a static dashboard that reads it.
 
-    generate_imm_data.py  ->  data/imm_data.xlsx   (the panel, 360 rows x 44 columns)
-    index.html            <-  data/imm_data.xlsx   (parsed in the browser, no build step)
-                          <-  config/settings.json (fetched at runtime)
+    generate_imm_data.py  ->  data/imm_data.xlsx        (the panel, 360 rows x 44 columns)
+    index.html            <-  data/imm_data.xlsx        (parsed in the browser, no build step)
+                          <-  config/settings.json      (fetched at runtime)
+                          <-  config/orr-mapping.xlsx   (ORR grade -> order -> band)
 
 There is no generated data file and no bundler. `index.html` contains a dependency-free
 .xlsx reader: it unzips the workbook with `DecompressionStream('deflate-raw')` and parses
@@ -69,19 +70,50 @@ authority, so update it alongside any config change. Blocks, in reading order:
 `defaultReportMonth` / `labels` (opening view and picker captions), `analytics` (colour and
 label per group), `columns` (workbook column -> analytics group -> header -> format),
 `groups` (the Team picker, each able to override columns/analytics/name), `table`
-(aggregation, sorting, paging, default width).
+(aggregation, sorting, paging, month order).
 
 Behaviours worth preserving when editing:
 
 - The Total row aggregates the **whole selection**, never just the visible page.
 - Sorting uses **what the cell displays** — a value hidden by `showWhen` sorts as blank,
   and blanks always sort last in both directions.
-- Column widths are **measured** (canvas text metrics, bold, against the formatted value —
-  not the raw one), then converted into relative weights. Surplus table width goes to one
-  `flex` column rather than inflating every column.
+- Column widths are **not predicted**. Each render lays the table out once with
+  `table-layout:auto`, lets the browser size every column against the text on screen
+  (text columns wrap, numerics stay `nowrap`), then reads the widths back and pins them
+  so `table-layout:fixed` governs — which is what makes drag-to-resize exact. Do not
+  reintroduce canvas text measurement here; it was removed because every estimate in it
+  (raw vs formatted values, cell padding, font) had been wrong at least once.
+- A column dragged by the user is remembered in `localStorage` and wins over measurement;
+  the `flex` column, if any, must never be one the user has sized, or the drag is undone.
+- A coded column can aggregate through a mapping workbook — see `total: "band"` below.
 - A group's `columns` list wins over analytics show/hide, and may only name columns
   already defined in the top-level `columns`.
 - Bad config surfaces in the amber banner rather than being swallowed.
+
+### ORR aggregation (`total: "band"`)
+
+A column of grade codes cannot be averaged as text, so `fund_orr` aggregates through
+`config/orr-mapping.xlsx`:
+
+    grade -> order -> AUM-weighted mean -> band lookup -> grade
+
+The mapping is a workbook, not JSON, so it stays editable in Excel; the page reads it with
+the same `.xlsx` reader it uses for the panel, once at startup. The mode is general — any
+coded column can use it by naming a mapping workbook and its label/value/min/max columns.
+
+Rules, all load-bearing and all decided deliberately:
+
+- Bands share endpoints, so they are **lower-inclusive**: 0.85 reads as `2`, not `2+`.
+- Bands are scanned **in file order and the first match wins**. The source table has two
+  quirks this resolves: rows `7` and `8` overlap (7 ends at 62.79, 8 starts at 62.76), and
+  `8` and `NR` share an identical band. So 62.77 gives `7` and 70.0 gives `8`.
+- Labels in `exclude` carry **no weight**. `NR` is excluded — "not rated" is a missing
+  assessment, not a rating of 75.19.
+- Rows with non-positive AUM carry no weight, matching `wavg`.
+- An unreadable mapping blanks the cell and reports it in the banner; the table still works.
+
+Only the team that shows analytics group `risk2` displays this column; the calculation
+itself is team-independent.
 
 ## Working with settings.json
 

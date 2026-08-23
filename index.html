@@ -65,7 +65,9 @@
   td.a-left,tfoot td.a-left{text-align:left;padding-left:22px}
   td.a-center{text-align:center}
   td.f-tick{color:var(--check)}
-  td.f-text.a-right{font-size:calc(11px * var(--fs));color:#4A4F56;padding-right:22px}
+  /* Body cells only — the Total row keeps its own white, larger type. */
+  tbody td.f-text.a-right{font-size:calc(11px * var(--fs));color:#4A4F56;padding-right:22px}
+  tfoot td.f-text.a-right{padding-right:22px}
   td.edge-r,tfoot td.edge-r{padding-right:22px}
   td.clickable{cursor:pointer}
 
