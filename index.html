@@ -49,12 +49,15 @@
   .cs-opt[aria-selected="true"]{font-weight:700;color:var(--sel-border)}
 
   .scroll{overflow-x:auto}
-  table{border-collapse:collapse;width:100%;min-width:760px;table-layout:fixed}
+  table{border-collapse:collapse;width:100%;table-layout:fixed}
+  /* During measurement the browser sizes the columns itself; widths are then
+     read back and pinned so table-layout:fixed can take over. */
+  table.measuring{table-layout:auto}
   thead th{color:#fff;font-weight:700;font-size:calc(11.5px * var(--fs) * 1.1);line-height:1.25;height:56px;vertical-align:middle;padding:4px 10px;text-align:center}
   thead th.a-left{text-align:left;padding-left:22px}
 
   tbody td{height:25px;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  tbody td.wrap{white-space:normal;overflow:visible;text-overflow:clip;
+  tbody td.f-text, tbody td.wrap{white-space:normal;overflow:visible;text-overflow:clip;
                 overflow-wrap:anywhere;line-height:1.3;padding-top:5px;padding-bottom:5px}
   tbody tr:nth-child(odd) td{background:var(--row-odd)}
   tbody tr:nth-child(even) td{background:var(--row-even)}
@@ -76,6 +79,14 @@
   thead th .arrow{font-size:calc(9px * var(--fs));margin-left:4px;opacity:.95;white-space:nowrap}
   thead th .arrow .idx{font-size:calc(8px * var(--fs));vertical-align:2px;margin-right:1px}
   thead th.sorted{font-weight:700}
+  thead th{position:relative}
+  .grip{position:absolute;top:0;right:0;bottom:0;width:9px;cursor:col-resize;
+        z-index:2;touch-action:none}
+  .grip::after{content:"";position:absolute;top:22%;bottom:22%;right:4px;width:1px;
+               background:rgba(255,255,255,.45)}
+  .grip:hover::after,.grip.dragging::after{background:#fff;width:2px;right:3px}
+  body.resizing{cursor:col-resize;-webkit-user-select:none;user-select:none}
+  .hint a{color:var(--sel-border);cursor:pointer;text-decoration:underline}
 
   .pager{display:flex;align-items:center;justify-content:space-between;gap:16px;
          margin-top:12px;font-size:calc(12px * var(--fs));color:var(--muted)}
@@ -147,7 +158,7 @@
       kpi:  {label:"KPI",         colour:"#7D9B87"}
     },
     columns: [
-      {column:"port_mandate_name",         analytics:"base", header:"Portfolio",                format:"text", width:27.2},
+      {column:"port_mandate_name",         analytics:"base", header:"Portfolio",                format:"text"},
       {column:"aum_usd",                   analytics:"base", header:"Gross AUM|(USD 'm)",       format:"musd"},
       {column:"excess_rtn_ytd",            analytics:"perf", header:"Excess|Return|(YTD)",      format:"pct1"},
       {column:"port_rtn_ytd",              analytics:"perf", header:"Portfolio|Return|(YTD)",   format:"pct1"},
@@ -173,22 +184,35 @@
     tick: function(v){ return Number(v) === 1 ? "✓" : ""; }
   };
   // Per-format defaults, so a column entry only needs column/analytics/header/format.
+  // Per-format defaults for alignment and Total behaviour. Widths are not
+  // listed: the browser measures every column against what is on screen.
   // `total:"agg"` means "use table.aggregation" (avg or wavg).
   var DEF = {
-    text: {width:12.5, align:"right",  total:"none"},
-    musd: {width:8.5,  align:"right",  total:"sum"},
-    pct1: {width:6.2,  align:"right",  total:"agg"},
-    num2: {width:6.2,  align:"right",  total:"agg"},
-    int:  {width:5.0,  align:"right",  total:"agg"},
-    tick: {width:4.6,  align:"center", total:"none"}
+    text: {align:"right",  total:"none"},
+    musd: {align:"right",  total:"sum"},
+    pct1: {align:"right",  total:"agg"},
+    num2: {align:"right",  total:"agg"},
+    int:  {align:"right",  total:"agg"},
+    tick: {align:"center", total:"none"}
   };
   var PAGE_OPTS = [5, 10, 25, 50, 100, "all"];
 
   var cfg, DS, TBL, groups, cols, baseWarn = [], warn = [], sel = null;
-  var sortKeys = [], page = 1, pageSize = 10, LABEL_ROWS = "Rows per page";   // sortKeys: [{col, dir}] in priority order
+  var sortKeys = [], page = 1, pageSize = 10, LABEL_ROWS = "Rows per page";
 
-  // Off-screen text measurement, so a column or picker can be sized to its
-  // widest actual value rather than to a guessed weight.
+  // Widths the user has dragged, in px, keyed by workbook column. Kept across
+  // team switches and reloads; measurement takes over again once cleared.
+  var WKEY = "imm-dashboard.columnWidths", manual = {};
+  try { manual = JSON.parse(localStorage.getItem(WKEY) || "{}") || {}; } catch (e) { manual = {}; }
+  function saveWidths(){
+    try {
+      if (Object.keys(manual).length) localStorage.setItem(WKEY, JSON.stringify(manual));
+      else localStorage.removeItem(WKEY);
+    } catch (e) {}
+  }   // sortKeys: [{col, dir}] in priority order
+
+  // Off-screen text measurement — used only to size the pickers, which are not
+  // table cells and so cannot be measured by the table layout itself.
   var _mcanvas;
   function fontOf(el, weight){
     var cs = getComputedStyle(el);
@@ -200,25 +224,11 @@
     ctx.font = font;
     return ctx.measureText(String(text == null ? "" : text)).width;
   }
-  // Measure what the cell will actually show, not the underlying value:
-  // aum_usd holds -213061885.6225219 but renders as "-213M".
-  function widestValue(rows, c, font){
-    var fmt = FMT[c.format] || FMT.text, w = 0;
-    rows.forEach(function(r){
-      w = Math.max(w, measureText(visible(c, r) ? fmt(r[c.column]) : "", font));
-    });
-    return w;
-  }
 
   function norm(x){ return String(x).toLowerCase().replace(/\s+/g, " ").trim(); }
   function def(c, prop){
     if (c[prop] != null) return c[prop];
     return (DEF[c.format] || DEF.text)[prop];
-  }
-  // "fit" measures the column; a number is a relative weight. An explicit
-  // `width` on the column always wins over table.defaultWidth.
-  function widthSpec(c){
-    return c.width != null ? c.width : (TBL && TBL.defaultWidth) || "fit";
   }
 
   function vals(rows, key){
@@ -394,114 +404,20 @@
   // `width: "fit"` sizes a column to its widest value in the current selection.
   // Measured in px, then converted back into the relative-weight system so the
   // remaining columns still share what is left of the table.
-  var MIN_COL_PX = 92;   // below this a numeric column starts ellipsising
+  // ---------------------------------------------------------------------
+  // Column sizing. Rather than predicting text widths, the table is rendered
+  // once with table-layout:auto — the browser sizes every column to the text
+  // actually on screen, wrapping the text columns as needed — and the result
+  // is read back and pinned. Nothing is estimated: no font guessing, no
+  // padding arithmetic, no compression heuristic.
+  // ---------------------------------------------------------------------
+  var MIN_COL_PX = 34;
 
-  // Real horizontal padding of a rendered cell in this column; CSS gives some
-  // columns extra (e.g. text columns get 22px on the outer edge), so read it
-  // rather than assume it.
-  function padOf(i, c){
-    var probe = $("tbody").querySelector("tr td:nth-child(" + (i + 1) + ")");
-    if (probe){
-      var cs = getComputedStyle(probe);
-      var pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0;
-      if (pl + pr > 0) return pl + pr;
-    }
-    return (align(c, i) === "left" ? 22 : 10) + 22;
-  }
-
-  function fitPixels(rows){
-    var px = {}, fit = cols.filter(function(c){ return widthSpec(c) === "fit"; });
-    if (!fit.length || !rows.length) return px;
-    var probe = $("tbody").querySelector("td") || $("thr");
-    var font = fontOf(probe, 700);   // selected and total rows are bold; size for the worst case
-    var hdrFont = fontOf($("thr").querySelector("th") || probe, 700);
-    var labelled = false;
-
-    cols.forEach(function(c){
-      var how = def(c, "total"), totalText = "";
-      if (how !== "none") totalText = (FMT[c.format] || FMT.text)(aggregate(rows, c.column, how));
-      else if (!labelled){ totalText = "Total"; labelled = true; }
-      if (widthSpec(c) !== "fit") return;
-
-      // widest of: every header line, every cell value, and the Total row cell
-      var w = 0;
-      String(c.header == null ? c.column : c.header).split("|").forEach(function(line){
-        w = Math.max(w, measureText(line.trim(), hdrFont));
-      });
-
-      var lines = (typeof c.wrap === "number" && c.wrap > 1) ? c.wrap : 1;
-      if (lines > 1){
-        // Wrapping to a target number of lines: the column needs its longest
-        // single word (which can never break) and roughly its widest value
-        // divided across those lines.
-        var fmt = FMT[c.format] || FMT.text, word = 0, share = 0;
-        rows.forEach(function(r){
-          var t = String(visible(c, r) ? fmt(r[c.column]) : "");
-          t.split(/\s+/).forEach(function(piece){
-            word = Math.max(word, measureText(piece, font));
-          });
-          share = Math.max(share, measureText(t, font) / lines);
-        });
-        w = Math.max(w, word, share, measureText(totalText, font));
-      } else {
-        w = Math.max(w, widestValue(rows, c, font), measureText(totalText, font));
-      }
-
-      px[c.column] = w + padOf(cols.indexOf(c), c) + 6;   // + a little slack
-    });
-    return px;
-  }
-
-  function buildHead(an, rows){
-    var px = fitPixels(rows || []);
-    var pxTotal = 0, fitCount = 0;
-    cols.forEach(function(c){ if (px[c.column]){ pxTotal += px[c.column]; fitCount++; } });
-
-    // The table must be wide enough for the measured columns AND leave every
-    // other column its minimum; below that, .scroll takes over horizontally.
-    var minW = Math.max(760, pxTotal + (cols.length - fitCount) * MIN_COL_PX);
-    var tableEl = document.querySelector("table");
-    tableEl.style.minWidth = minW + "px";
-
-    var scroll = document.querySelector(".scroll");
-    var T = Math.max(scroll ? scroll.clientWidth : 0, minW);
-
-    var fitted = {};
-    if (pxTotal){
-      var rest = cols.reduce(function(a, c){ return a + (px[c.column] ? 0 : def(c, "width")); }, 0);
-      if (rest === 0){
-        // Every column measures itself. If the table is wider than they need,
-        // hand the surplus to ONE column instead of inflating all of them —
-        // otherwise every column carries dead space it cannot use.
-        if (T > pxTotal){
-          var flexCol = null;
-          cols.forEach(function(c){ if (c.flex && !flexCol) flexCol = c; });
-          if (!flexCol) flexCol = cols[0];
-          if (flexCol && px[flexCol.column]){
-            px[flexCol.column] += (T - pxTotal);
-            pxTotal = T;
-          }
-        }
-        // The pixel figures ARE the weights, so each column keeps its exact share.
-        cols.forEach(function(c){ fitted[c.column] = px[c.column]; });
-      } else {
-        // Mixed: convert the measured pixels into the weight scale used by the
-        // columns that are still sized by format.
-        var f = Math.min(0.75, pxTotal / T);
-        var share = f * rest / (1 - f);
-        cols.forEach(function(c){
-          if (px[c.column]) fitted[c.column] = share * px[c.column] / pxTotal;
-        });
-      }
-    }
-    function wOf(c){ return fitted[c.column] != null ? fitted[c.column] : def(c, "width"); }
-    var total = cols.reduce(function(a,c){ return a + wOf(c); }, 0);
+  function buildHead(an){
     var cg = $("cg"), thr = $("thr");
     cg.innerHTML = ""; thr.innerHTML = "";
     cols.forEach(function(c, i){
-      var col = document.createElement("col");
-      col.style.width = (wOf(c) / total * 100).toFixed(3) + "%";
-      cg.appendChild(col);
+      cg.appendChild(document.createElement("col"));
 
       var th = document.createElement("th");
       th.style.backgroundColor = an[c.analytics].colour;
@@ -526,9 +442,109 @@
         ar.appendChild(document.createTextNode(sortKeys[ki].dir === 1 ? "▲" : "▼"));
         th.appendChild(ar);
       }
+      if (i < cols.length - 1){
+        var grip = document.createElement("div");
+        grip.className = "grip";
+        grip.title = "Drag to resize · double-click to reset";
+        grip.dataset.col = c.column;
+        th.appendChild(grip);
+      }
       thr.appendChild(th);
     });
   }
+
+  // Called once the body and total rows are in the DOM.
+  function sizeColumns(){
+    var tableEl = document.querySelector("table");
+    var colEls = $("cg").children, ths = $("thr").children;
+    if (!ths.length) return;
+
+    // 1. Let the browser lay it out. Auto layout sizes each column between its
+    //    min-content and max-content width and shares any slack in proportion,
+    //    which is the balanced result we want. Only a column explicitly marked
+    //    `flex` overrides that and swallows the slack itself.
+    var flexIdx = -1;
+    cols.forEach(function(c, i){
+      if (c.flex && flexIdx < 0 && !manual[c.column]) flexIdx = i;
+    });
+
+    for (var i = 0; i < colEls.length; i++){
+      var c = cols[i];
+      // A dragged width wins; then an explicit `width` in the config (px);
+      // otherwise the browser decides.
+      var pinned = manual[c.column] || (typeof c.width === "number" ? c.width : 0);
+      colEls[i].style.width = pinned ? pinned + "px"
+                            : (i === flexIdx ? "100%" : "");
+    }
+    tableEl.classList.add("measuring");
+
+    // 2. read back what the browser decided (forces layout)
+    var widths = [];
+    for (var j = 0; j < ths.length; j++) widths.push(ths[j].getBoundingClientRect().width);
+
+    // 3. pin those widths so table-layout:fixed governs from here — which is
+    //    what makes drag-to-resize exact.
+    tableEl.classList.remove("measuring");
+    var total = widths.reduce(function(a, b){ return a + b; }, 0) || 1;
+    for (var k = 0; k < colEls.length; k++){
+      colEls[k].style.width = (Math.max(widths[k], MIN_COL_PX) / total * 100).toFixed(3) + "%";
+    }
+  }
+
+  // Drag a header edge to resize. The width taken is given back to a neighbour,
+  // so the table keeps its width and never gains a scrollbar.
+  function startResize(e, colName){
+    var i = -1;
+    cols.forEach(function(c, n){ if (c.column === colName) i = n; });
+    if (i < 0 || i >= cols.length - 1) return;
+    var give = i + 1;                    // the neighbour that absorbs the change
+
+    var colEls = $("cg").children, cells = $("thr").children;
+    var startX = e.clientX;
+    var startW = cells[i].getBoundingClientRect().width;
+    var startGive = cells[give].getBoundingClientRect().width;
+    var grip = e.target;
+
+    grip.classList.add("dragging");
+    document.body.classList.add("resizing");
+
+    function clamp(ev){
+      var d = ev.clientX - startX;
+      return Math.max(MIN_COL_PX - startW, Math.min(d, startGive - MIN_COL_PX));
+    }
+    function move(ev){
+      var d = clamp(ev);
+      colEls[i].style.width = (startW + d) + "px";
+      colEls[give].style.width = (startGive - d) + "px";
+    }
+    function up(ev){
+      var d = clamp(ev);
+      grip.classList.remove("dragging");
+      document.body.classList.remove("resizing");
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+      if (Math.abs(d) < 2) return;
+      manual[cols[i].column] = Math.round(startW + d);
+      manual[cols[give].column] = Math.round(startGive - d);
+      saveWidths();
+      render();
+    }
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  $("thr").addEventListener("mousedown", function(e){
+    if (e.target.classList && e.target.classList.contains("grip"))
+      startResize(e, e.target.dataset.col);
+  });
+  $("thr").addEventListener("dblclick", function(e){
+    if (!e.target.classList || !e.target.classList.contains("grip")) return;
+    delete manual[e.target.dataset.col];
+    saveWidths(); render();
+    e.preventDefault(); e.stopPropagation();
+  });
 
   function align(c, i){ return c.align || (i === 0 ? "left" : def(c, "align")); }
 
@@ -575,7 +591,7 @@
     var from = pageSize === "all" ? 0 : (page - 1) * pageSize;
     var rows = pageSize === "all" ? all : all.slice(from, from + pageSize);
 
-    buildHead(an, all);
+    buildHead(an);
 
     var tbody = $("tbody"), tfoot = $("tfoot");
     tbody.innerHTML = ""; tfoot.innerHTML = "";
@@ -643,11 +659,22 @@
       var nm = c ? String(c.header == null ? c.column : c.header).split("|").join(" ") : k.col;
       return (sortKeys.length > 1 ? (n + 1) + ". " : "") + nm + " " + (k.dir === 1 ? "▲" : "▼");
     }).join("   ");
-    $("hint").textContent = "Sorted by " + names
-      + "   ·   click a header to sort by it, shift-click to add another column";
+    var nManual = Object.keys(manual).length;
+    $("hint").innerHTML = "Sorted by " + names
+      + "   ·   click a header to sort by it, shift-click to add another column"
+      + "   ·   drag a header edge to resize"
+      + (nManual ? '   ·   <a id="resetw">reset ' + nManual + ' resized column'
+                   + (nManual === 1 ? "" : "s") + "</a>" : "");
+    if (nManual){
+      $("resetw").addEventListener("click", function(){
+        manual = {}; saveWidths(); render();
+      });
+    }
 
     var msgs = baseWarn.concat(warn);
     $("warn").textContent = msgs.length ? msgs.join(" · ") : "";
+
+    sizeColumns();   // body is in the DOM: let the browser size it, then pin
   }
 
   function pageBtn(label, target, opts){
@@ -724,6 +751,7 @@
   // Shift-click builds a multi-column sort: add ▼, shift-click again for ▲,
   // once more to drop that key.
   $("thr").addEventListener("click", function(e){
+    if (e.target.classList && e.target.classList.contains("grip")) return;
     var th = e.target.closest("th");
     if (!th || !th.dataset.col) return;
     var col = th.dataset.col, i = keyIndex(col);
@@ -960,7 +988,12 @@
           if (m != null && !seenM[m]){ seenM[m] = 1; d.months.push({key: String(m), label: monthLabel(m)}); }
           if (g != null && !seenG[g]){ seenG[g] = 1; d.groups.push({key: g, label: groupLabel(g)}); }
         });
-        d.months.sort(function(a, b){ return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; });
+        // Newest month first by default — that is usually the one being looked at.
+        var asc = ((cfg && cfg.table) || {}).monthOrder === "asc";
+        d.months.sort(function(a, b){
+          var r = a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+          return asc ? r : -r;
+        });
         d.groups.sort(function(a, b){
           var x = groupSortKey(a.key), y = groupSortKey(b.key);
           return x[0] - y[0] || (x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0);
@@ -1102,7 +1135,6 @@
     TBL = {
       aggregation: (tb.aggregation === "avg") ? "avg" : "wavg",
       defaultSort: tb.defaultSort || null,
-      defaultWidth: tb.defaultWidth === "format" ? "format" : "fit",
       pageSize: tb.pageSize == null ? 10 : tb.pageSize,
       pageSizeOptions: isArr(tb.pageSizeOptions) && tb.pageSizeOptions.length
                        ? tb.pageSizeOptions : PAGE_OPTS
@@ -1140,6 +1172,7 @@
     mthEl.value = (dm && D.months.some(function(m){ return m.key === dm; })) ? dm : D.months[0].key;
 
     enhanceSelect(grpEl);
+    enhanceSelect(mthEl);
 
     grpEl.addEventListener("change", function(){ sel = null; page = 1; render(); });
     mthEl.addEventListener("change", function(){ sel = null; page = 1; render(); });
