@@ -6,6 +6,8 @@
 <title>IMM Dashboard</title>
 <style>
   :root{
+    /* One knob for every font size on the page. 1 = original, 0.8 = 20% smaller. */
+    --fs:0.8;
     --row-odd:#F4F5F6; --row-even:#EAECEE; --ink:#2B2B2B;
     --title:#B08D3F; --sel-row:#FFF8E8; --sel-border:#2E5AAC;
     --check:#3D8B3D; --muted:#6B7078; --total-bg:#B0392E;
@@ -14,50 +16,69 @@
   html,body{margin:0;padding:0}
   body{
     background:#fff;color:var(--ink);
-    font:400 13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    font-weight:400;line-height:1.4;
+    font-size:calc(13px * var(--fs));
     -webkit-font-smoothing:antialiased;
   }
   .page{max-width:1400px;margin:0 auto;padding:28px 40px 56px}
 
   .top{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:22px}
-  h1{margin:0;font-size:32px;font-weight:700;letter-spacing:-.2px;color:var(--title)}
+  h1{margin:0;font-size:calc(32px * var(--fs));font-weight:700;letter-spacing:-.2px;color:var(--title)}
   .pickers{display:flex;gap:12px;flex:0 0 auto}
   .picker-sm{min-width:118px}
   .picker{border:1px solid #C9CCD1;border-radius:6px;background:#fff;padding:6px 12px 7px;min-width:190px;position:relative}
-  .picker label{display:block;font-size:11px;color:var(--muted);margin-bottom:1px}
-  .picker select{-webkit-appearance:none;appearance:none;border:0;background:transparent;font:inherit;font-size:15px;color:var(--ink);width:100%;padding:0 20px 0 0;cursor:pointer;outline:none}
+  .picker label{display:block;font-size:calc(11px * var(--fs));color:var(--muted);margin-bottom:1px}
+  .picker select{-webkit-appearance:none;appearance:none;border:0;background:transparent;font:inherit;font-size:calc(15px * var(--fs));color:var(--ink);width:100%;padding:0 20px 0 0;cursor:pointer;outline:none}
   .picker::after{content:"";position:absolute;right:12px;bottom:15px;pointer-events:none;width:9px;height:9px;border-right:1.6px solid #6E737A;border-bottom:1.6px solid #6E737A;transform:rotate(45deg)}
   .picker:focus-within{border-color:var(--sel-border);box-shadow:0 0 0 2px rgba(46,90,172,.15)}
 
+  /* Custom dropdown. A native <select> popup is drawn by the OS and ignores
+     padding, so the real <select> is kept (hidden) as the source of truth and
+     this list is rendered over it. */
+  .picker.custom select{display:none}
+  .cs-btn{display:block;width:100%;text-align:left;border:0;background:transparent;
+          font:inherit;font-size:calc(15px * var(--fs));color:var(--ink);padding:0 20px 0 0;cursor:pointer;outline:none}
+  .cs-list{position:absolute;top:calc(100% + 5px);left:-1px;right:-1px;z-index:30;
+           margin:0;padding:6px 0;list-style:none;background:#fff;border:1px solid #C9CCD1;
+           border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.13);max-height:340px;overflow-y:auto}
+  .cs-list[hidden]{display:none}
+  .cs-opt{padding:9px 16px;font-size:calc(14px * var(--fs));line-height:1.35;color:var(--ink);cursor:pointer;
+          white-space:nowrap}
+  .cs-opt:hover,.cs-opt.active{background:#F1F2F4}
+  .cs-opt[aria-selected="true"]{font-weight:700;color:var(--sel-border)}
+
   .scroll{overflow-x:auto}
   table{border-collapse:collapse;width:100%;min-width:760px;table-layout:fixed}
-  thead th{color:#fff;font-weight:400;font-size:11.5px;line-height:1.25;height:56px;vertical-align:middle;padding:4px 10px;text-align:center}
+  thead th{color:#fff;font-weight:700;font-size:calc(11.5px * var(--fs) * 1.1);line-height:1.25;height:56px;vertical-align:middle;padding:4px 10px;text-align:center}
   thead th.a-left{text-align:left;padding-left:22px}
 
   tbody td{height:25px;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  tbody td.wrap{white-space:normal;overflow:visible;text-overflow:clip;
+                overflow-wrap:anywhere;line-height:1.3;padding-top:5px;padding-bottom:5px}
   tbody tr:nth-child(odd) td{background:var(--row-odd)}
   tbody tr:nth-child(even) td{background:var(--row-even)}
   td.a-right,tfoot td.a-right{text-align:right;font-variant-numeric:tabular-nums}
   td.a-left,tfoot td.a-left{text-align:left;padding-left:22px}
   td.a-center{text-align:center}
   td.f-tick{color:var(--check)}
-  td.f-text.a-right{font-size:11px;color:#4A4F56;padding-right:22px}
+  td.f-text.a-right{font-size:calc(11px * var(--fs));color:#4A4F56;padding-right:22px}
   td.edge-r,tfoot td.edge-r{padding-right:22px}
   td.clickable{cursor:pointer}
 
   tbody tr.sel td{background:var(--sel-row);font-weight:700}
   td.cell-sel{outline:2px solid var(--sel-border);outline-offset:-3px;border-radius:3px;font-weight:700}
 
-  tfoot td{background:var(--total-bg);color:#fff;font-weight:700;height:30px;padding:0 10px;white-space:nowrap}
+  tfoot td{background:var(--total-bg);color:#fff;font-weight:700;font-size:calc(13px * var(--fs) * 1.1);height:30px;padding:0 10px;white-space:nowrap}
 
   thead th.sortable{cursor:pointer;-webkit-user-select:none;user-select:none}
   thead th.sortable:hover{filter:brightness(1.07)}
-  thead th .arrow{font-size:9px;margin-left:4px;opacity:.95;white-space:nowrap}
-  thead th .arrow .idx{font-size:8px;vertical-align:2px;margin-right:1px}
+  thead th .arrow{font-size:calc(9px * var(--fs));margin-left:4px;opacity:.95;white-space:nowrap}
+  thead th .arrow .idx{font-size:calc(8px * var(--fs));vertical-align:2px;margin-right:1px}
   thead th.sorted{font-weight:700}
 
   .pager{display:flex;align-items:center;justify-content:space-between;gap:16px;
-         margin-top:12px;font-size:12px;color:var(--muted)}
+         margin-top:12px;font-size:calc(12px * var(--fs));color:var(--muted)}
   .pager .btns{display:flex;gap:4px}
   .pager button{font:inherit;color:var(--ink);background:#fff;border:1px solid #C9CCD1;
                 border-radius:4px;min-width:28px;height:26px;padding:0 8px;cursor:pointer}
@@ -70,13 +91,13 @@
   .pager .rpp select{font:inherit;color:var(--ink);background:#fff;border:1px solid #C9CCD1;
                      border-radius:4px;height:26px;padding:0 6px;cursor:pointer}
   .pager .rpp select:focus{outline:none;border-color:var(--sel-border);box-shadow:0 0 0 2px rgba(46,90,172,.15)}
-  .hint{margin-top:6px;font-size:11px;color:var(--muted)}
+  .hint{margin-top:6px;font-size:calc(11px * var(--fs));color:var(--muted)}
   .pager:empty{display:none}
 
-  .foot{margin-top:14px;font-size:11.5px;color:var(--muted)}
-  .foot code{font-size:11px;background:#F1F2F4;padding:1px 5px;border-radius:3px}
+  .foot{margin-top:14px;font-size:calc(11.5px * var(--fs));color:var(--muted)}
+  .foot code{font-size:calc(11px * var(--fs));background:#F1F2F4;padding:1px 5px;border-radius:3px}
   .chip{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 4px 0 9px;vertical-align:baseline}
-  .warn{margin:0 0 16px;padding:9px 14px;border-radius:6px;background:#FDF3E2;border:1px solid #E6C98A;color:#7A5A16;font-size:12px}
+  .warn{margin:0 0 16px;padding:9px 14px;border-radius:6px;background:#FDF3E2;border:1px solid #E6C98A;color:#7A5A16;font-size:calc(12px * var(--fs))}
   .warn:empty{display:none}
   .empty{padding:40px 22px;color:var(--muted);background:var(--row-odd)}
 </style>
@@ -164,12 +185,40 @@
   var PAGE_OPTS = [5, 10, 25, 50, 100, "all"];
 
   var cfg, DS, TBL, groups, cols, baseWarn = [], warn = [], sel = null;
-  var sortKeys = [], page = 1, pageSize = 10;   // sortKeys: [{col, dir}] in priority order
+  var sortKeys = [], page = 1, pageSize = 10, LABEL_ROWS = "Rows per page";   // sortKeys: [{col, dir}] in priority order
+
+  // Off-screen text measurement, so a column or picker can be sized to its
+  // widest actual value rather than to a guessed weight.
+  var _mcanvas;
+  function fontOf(el, weight){
+    var cs = getComputedStyle(el);
+    return (weight || cs.fontWeight) + " " + cs.fontSize + " " + cs.fontFamily;
+  }
+  function measureText(text, font){
+    _mcanvas = _mcanvas || document.createElement("canvas");
+    var ctx = _mcanvas.getContext("2d");
+    ctx.font = font;
+    return ctx.measureText(String(text == null ? "" : text)).width;
+  }
+  // Measure what the cell will actually show, not the underlying value:
+  // aum_usd holds -213061885.6225219 but renders as "-213M".
+  function widestValue(rows, c, font){
+    var fmt = FMT[c.format] || FMT.text, w = 0;
+    rows.forEach(function(r){
+      w = Math.max(w, measureText(visible(c, r) ? fmt(r[c.column]) : "", font));
+    });
+    return w;
+  }
 
   function norm(x){ return String(x).toLowerCase().replace(/\s+/g, " ").trim(); }
   function def(c, prop){
     if (c[prop] != null) return c[prop];
     return (DEF[c.format] || DEF.text)[prop];
+  }
+  // "fit" measures the column; a number is a relative weight. An explicit
+  // `width` on the column always wins over table.defaultWidth.
+  function widthSpec(c){
+    return c.width != null ? c.width : (TBL && TBL.defaultWidth) || "fit";
   }
 
   function vals(rows, key){
@@ -211,10 +260,20 @@
     return dir * String(x).localeCompare(String(y), undefined, {numeric: true});
   }
   // Keys are applied in priority order: the first that separates two rows wins.
+  // Sorts on what the cell DISPLAYS: a value hidden by `showWhen` sorts as
+  // blank, so those rows collect at the end instead of being ordered by a
+  // value the reader cannot see.
   function sorter(keys){
+    var byCol = {};
+    cols.forEach(function(c){ byCol[c.column] = c; });
+    function shown(r, col){
+      var c = byCol[col];
+      return (c && !visible(c, r)) ? null : r[col];
+    }
     return function(a, b){
       for (var i = 0; i < keys.length; i++){
-        var r = cmpVal(a[keys[i].col], b[keys[i].col], keys[i].dir);
+        var k = keys[i];
+        var r = cmpVal(shown(a, k.col), shown(b, k.col), k.dir);
         if (r) return r;
       }
       return 0;
@@ -266,7 +325,7 @@
         baseWarn.push('settings.json: group "' + e.group + '" is not present in ' + D.source);
         return;
       }
-      out.push({key: e.group, label: e.title || byKey[e.group].label,
+      out.push({key: e.group, label: e.name || e.title || byKey[e.group].label,
                 pick: e.columns || null, ov: e.analytics || null});
     });
     if (!out.length){
@@ -332,13 +391,116 @@
     });
   }
 
-  function buildHead(an){
-    var total = cols.reduce(function(a,c){ return a + def(c, "width"); }, 0);
+  // `width: "fit"` sizes a column to its widest value in the current selection.
+  // Measured in px, then converted back into the relative-weight system so the
+  // remaining columns still share what is left of the table.
+  var MIN_COL_PX = 92;   // below this a numeric column starts ellipsising
+
+  // Real horizontal padding of a rendered cell in this column; CSS gives some
+  // columns extra (e.g. text columns get 22px on the outer edge), so read it
+  // rather than assume it.
+  function padOf(i, c){
+    var probe = $("tbody").querySelector("tr td:nth-child(" + (i + 1) + ")");
+    if (probe){
+      var cs = getComputedStyle(probe);
+      var pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0;
+      if (pl + pr > 0) return pl + pr;
+    }
+    return (align(c, i) === "left" ? 22 : 10) + 22;
+  }
+
+  function fitPixels(rows){
+    var px = {}, fit = cols.filter(function(c){ return widthSpec(c) === "fit"; });
+    if (!fit.length || !rows.length) return px;
+    var probe = $("tbody").querySelector("td") || $("thr");
+    var font = fontOf(probe, 700);   // selected and total rows are bold; size for the worst case
+    var hdrFont = fontOf($("thr").querySelector("th") || probe, 700);
+    var labelled = false;
+
+    cols.forEach(function(c){
+      var how = def(c, "total"), totalText = "";
+      if (how !== "none") totalText = (FMT[c.format] || FMT.text)(aggregate(rows, c.column, how));
+      else if (!labelled){ totalText = "Total"; labelled = true; }
+      if (widthSpec(c) !== "fit") return;
+
+      // widest of: every header line, every cell value, and the Total row cell
+      var w = 0;
+      String(c.header == null ? c.column : c.header).split("|").forEach(function(line){
+        w = Math.max(w, measureText(line.trim(), hdrFont));
+      });
+
+      var lines = (typeof c.wrap === "number" && c.wrap > 1) ? c.wrap : 1;
+      if (lines > 1){
+        // Wrapping to a target number of lines: the column needs its longest
+        // single word (which can never break) and roughly its widest value
+        // divided across those lines.
+        var fmt = FMT[c.format] || FMT.text, word = 0, share = 0;
+        rows.forEach(function(r){
+          var t = String(visible(c, r) ? fmt(r[c.column]) : "");
+          t.split(/\s+/).forEach(function(piece){
+            word = Math.max(word, measureText(piece, font));
+          });
+          share = Math.max(share, measureText(t, font) / lines);
+        });
+        w = Math.max(w, word, share, measureText(totalText, font));
+      } else {
+        w = Math.max(w, widestValue(rows, c, font), measureText(totalText, font));
+      }
+
+      px[c.column] = w + padOf(cols.indexOf(c), c) + 6;   // + a little slack
+    });
+    return px;
+  }
+
+  function buildHead(an, rows){
+    var px = fitPixels(rows || []);
+    var pxTotal = 0, fitCount = 0;
+    cols.forEach(function(c){ if (px[c.column]){ pxTotal += px[c.column]; fitCount++; } });
+
+    // The table must be wide enough for the measured columns AND leave every
+    // other column its minimum; below that, .scroll takes over horizontally.
+    var minW = Math.max(760, pxTotal + (cols.length - fitCount) * MIN_COL_PX);
+    var tableEl = document.querySelector("table");
+    tableEl.style.minWidth = minW + "px";
+
+    var scroll = document.querySelector(".scroll");
+    var T = Math.max(scroll ? scroll.clientWidth : 0, minW);
+
+    var fitted = {};
+    if (pxTotal){
+      var rest = cols.reduce(function(a, c){ return a + (px[c.column] ? 0 : def(c, "width")); }, 0);
+      if (rest === 0){
+        // Every column measures itself. If the table is wider than they need,
+        // hand the surplus to ONE column instead of inflating all of them —
+        // otherwise every column carries dead space it cannot use.
+        if (T > pxTotal){
+          var flexCol = null;
+          cols.forEach(function(c){ if (c.flex && !flexCol) flexCol = c; });
+          if (!flexCol) flexCol = cols[0];
+          if (flexCol && px[flexCol.column]){
+            px[flexCol.column] += (T - pxTotal);
+            pxTotal = T;
+          }
+        }
+        // The pixel figures ARE the weights, so each column keeps its exact share.
+        cols.forEach(function(c){ fitted[c.column] = px[c.column]; });
+      } else {
+        // Mixed: convert the measured pixels into the weight scale used by the
+        // columns that are still sized by format.
+        var f = Math.min(0.75, pxTotal / T);
+        var share = f * rest / (1 - f);
+        cols.forEach(function(c){
+          if (px[c.column]) fitted[c.column] = share * px[c.column] / pxTotal;
+        });
+      }
+    }
+    function wOf(c){ return fitted[c.column] != null ? fitted[c.column] : def(c, "width"); }
+    var total = cols.reduce(function(a,c){ return a + wOf(c); }, 0);
     var cg = $("cg"), thr = $("thr");
     cg.innerHTML = ""; thr.innerHTML = "";
     cols.forEach(function(c, i){
       var col = document.createElement("col");
-      col.style.width = (def(c, "width") / total * 100).toFixed(3) + "%";
+      col.style.width = (wOf(c) / total * 100).toFixed(3) + "%";
       cg.appendChild(col);
 
       var th = document.createElement("th");
@@ -375,9 +537,10 @@
     return Object.keys(c.showWhen).every(function(k){ return r[k] === c.showWhen[k]; });
   }
 
-  function cellClass(c, i){
+  function cellClass(c, i, body){
     var cl = ["a-" + align(c, i), "f-" + c.format];
     if (i === cols.length - 1 || c.format === "musd") cl.push("edge-r");
+    if (body && c.wrap) cl.push("wrap");
     return cl.join(" ");
   }
 
@@ -388,7 +551,6 @@
     warn = [];
     var an = effAnalytics(entry.ov);
     cols = pickColumns(an, entry.pick);
-    buildHead(an);
     $("title").textContent = entry.label;
 
     // Drop sort keys whose column this group does not show; if none survive,
@@ -413,6 +575,8 @@
     var from = pageSize === "all" ? 0 : (page - 1) * pageSize;
     var rows = pageSize === "all" ? all : all.slice(from, from + pageSize);
 
+    buildHead(an, all);
+
     var tbody = $("tbody"), tfoot = $("tfoot");
     tbody.innerHTML = ""; tfoot.innerHTML = "";
 
@@ -429,7 +593,7 @@
         if (sel && sel.id === id) tr.className = "sel";
         cols.forEach(function(c, i){
           var td = document.createElement("td");
-          td.className = cellClass(c, i);
+          td.className = cellClass(c, i, true);
           td.textContent = visible(c, r) ? (FMT[c.format] || FMT.text)(r[c.column]) : "";
           if (def(c, "total") !== "none"){
             td.classList.add("clickable");
@@ -507,7 +671,7 @@
     rpp.className = "rpp";
     var lab = document.createElement("label");
     lab.setAttribute("for", "pgs");
-    lab.textContent = "Rows per page";
+    lab.textContent = LABEL_ROWS;
     var sel2 = document.createElement("select");
     sel2.id = "pgs";
     TBL.pageSizeOptions.forEach(function(n){
@@ -813,7 +977,7 @@
       groupColumn:      d.groupColumn      || "exco_view1_level1",
       idColumn:         d.idColumn         || "mandate_id",
       weightColumn:     d.weightColumn     || "aum_usd",
-      workbook:         d.workbook         || "../data/imm_data.xlsx",
+      workbook:         d.workbook         || "data/imm_data.xlsx",
       sheetName:        d.sheetName        || "data"
     };
     // ?data= and ?sheet= override the config, for pointing at another workbook
@@ -821,6 +985,110 @@
     var q = new URLSearchParams(location.search);
     if (q.get("data"))  DS.workbook  = q.get("data");
     if (q.get("sheet")) DS.sheetName = q.get("sheet");
+  }
+
+  // Turn a native <select> into a styled list. The <select> stays in the DOM
+  // (hidden) so .value, .options and "change" listeners keep working; this only
+  // replaces the popup, which macOS otherwise draws itself and will not pad.
+  function enhanceSelect(sel){
+    var picker = sel.closest(".picker");
+    if (!picker) return;
+    picker.classList.add("custom");
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "cs-btn";
+    btn.setAttribute("aria-haspopup", "listbox");
+    btn.setAttribute("aria-expanded", "false");
+
+    var list = document.createElement("ul");
+    list.className = "cs-list";
+    list.setAttribute("role", "listbox");
+    list.hidden = true;
+
+    var opts = [], active = -1;
+
+    function paint(){
+      btn.textContent = sel.selectedOptions.length ? sel.selectedOptions[0].textContent : "";
+      opts.forEach(function(li, i){
+        li.setAttribute("aria-selected", String(sel.selectedIndex === i));
+        li.classList.toggle("active", i === active);
+      });
+    }
+    function open(){
+      if (!list.hidden) return;
+      active = sel.selectedIndex;
+      list.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+      paint();
+      if (opts[active]) opts[active].scrollIntoView({block: "nearest"});
+    }
+    function close(){
+      list.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+    }
+    function choose(i){
+      if (i < 0 || i >= opts.length) return;
+      sel.selectedIndex = i;
+      sel.dispatchEvent(new Event("change"));
+      paint(); close(); btn.focus();
+    }
+    function move(delta){
+      if (list.hidden){ open(); return; }
+      active = Math.max(0, Math.min(opts.length - 1, active + delta));
+      paint();
+      opts[active].scrollIntoView({block: "nearest"});
+    }
+
+    function build(){
+      list.innerHTML = ""; opts = [];
+      Array.prototype.forEach.call(sel.options, function(o, i){
+        var li = document.createElement("li");
+        li.className = "cs-opt";
+        li.setAttribute("role", "option");
+        li.textContent = o.textContent;
+        li.addEventListener("click", function(){ choose(i); });
+        li.addEventListener("mousemove", function(){ active = i; paint(); });
+        list.appendChild(li);
+        opts.push(li);
+      });
+      paint();
+    }
+
+    btn.addEventListener("click", function(){ list.hidden ? open() : close(); });
+    btn.addEventListener("keydown", function(e){
+      if (e.key === "ArrowDown"){ e.preventDefault(); move(1); }
+      else if (e.key === "ArrowUp"){ e.preventDefault(); move(-1); }
+      else if (e.key === "Home"){ e.preventDefault(); active = 0; paint(); }
+      else if (e.key === "End"){ e.preventDefault(); active = opts.length - 1; paint(); }
+      else if (e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        list.hidden ? open() : choose(active);
+      } else if (e.key === "Escape"){ close(); }
+    });
+    document.addEventListener("click", function(e){
+      if (!picker.contains(e.target)) close();
+    });
+
+    // Size the control to its widest option so nothing is truncated, closed or open.
+    function sizeToWidest(){
+      var font = fontOf(btn, 700), w = 0;
+      Array.prototype.forEach.call(sel.options, function(o){
+        w = Math.max(w, measureText(o.textContent, font));
+      });
+      // picker padding (12+12) + chevron gutter (20) + borders (2)
+      picker.style.width = Math.ceil(w + 46) + "px";
+      picker.style.minWidth = "0";
+    }
+
+    picker.appendChild(btn);
+    picker.appendChild(list);
+    build();
+    sizeToWidest();
+    sel.addEventListener("optionsChanged", sizeToWidest);
+    // the select can also change programmatically — keep the label in step
+    sel.addEventListener("change", paint);
+    sel.addEventListener("optionsChanged", build);
   }
 
   function start(){
@@ -834,6 +1102,7 @@
     TBL = {
       aggregation: (tb.aggregation === "avg") ? "avg" : "wavg",
       defaultSort: tb.defaultSort || null,
+      defaultWidth: tb.defaultWidth === "format" ? "format" : "fit",
       pageSize: tb.pageSize == null ? 10 : tb.pageSize,
       pageSizeOptions: isArr(tb.pageSizeOptions) && tb.pageSizeOptions.length
                        ? tb.pageSizeOptions : PAGE_OPTS
@@ -850,6 +1119,12 @@
 
     applyDefaultSort();
 
+    var L = cfg.labels || {};
+    var capGroup = L.group || "Team";
+    document.querySelector('label[for="grp"]').textContent = capGroup;
+    document.querySelector('label[for="mth"]').textContent = L.reportMonth || "Report Month";
+    LABEL_ROWS = L.rowsPerPage || "Rows per page";
+
     var grpEl = $("grp"), mthEl = $("mth");
     groups.forEach(function(g){
       var o = document.createElement("option"); o.value = g.key; o.textContent = g.label;
@@ -863,6 +1138,8 @@
     var dg = cfg.defaultGroup, dm = cfg.defaultReportMonth;
     grpEl.value = (dg && groups.some(function(g){ return g.key === dg; })) ? dg : groups[0].key;
     mthEl.value = (dm && D.months.some(function(m){ return m.key === dm; })) ? dm : D.months[0].key;
+
+    enhanceSelect(grpEl);
 
     grpEl.addEventListener("change", function(){ sel = null; page = 1; render(); });
     mthEl.addEventListener("change", function(){ sel = null; page = 1; render(); });
@@ -881,7 +1158,7 @@
     .catch(function(err){
       cfg = FALLBACK;
       baseWarn.push("config/settings.json could not be loaded (" + err.message
-                    + ") — using built-in defaults; serve the project over http to enable it");
+                    + ") — using built-in defaults; serve this folder over http to enable it");
     })
     .then(function(){
       resolveDataset();

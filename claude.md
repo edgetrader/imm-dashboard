@@ -5,105 +5,103 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this project is
 
 A synthetic investment-mandate monitoring (IMM) panel and a static dashboard that reads it.
-Two generators and one page, wired in a straight line:
 
-    generate_imm_data.py  ->  data/imm_data.xlsx      (the panel, 360 rows x 44 columns)
-    dashboard/index.html  <-  data/imm_data.xlsx      (parsed in the browser, no build step)
-                          <-  dashboard/config/settings.json  (fetched at runtime)
+    generate_imm_data.py  ->  data/imm_data.xlsx   (the panel, 360 rows x 44 columns)
+    index.html            <-  data/imm_data.xlsx   (parsed in the browser, no build step)
+                          <-  config/settings.json (fetched at runtime)
 
-There is no generated data file. index.html contains a small dependency-free .xlsx
-reader: it unzips the workbook with DecompressionStream('deflate-raw') and parses
-sharedStrings/styles/sheet XML with DOMParser. build_dashboard.py still exists but
-the page does not use it.
+There is no generated data file and no bundler. `index.html` contains a dependency-free
+.xlsx reader: it unzips the workbook with `DecompressionStream('deflate-raw')` and parses
+the sharedStrings / styles / sheet XML with `DOMParser`. `build_dashboard.py` still exists
+as an optional JSON dump but the page does not use it.
 
-The dashboard layout is modelled on `reference/dashboard-screenshot.png`. Colours and
-geometry in the page were sampled from that PNG, not eyeballed — taupe `#B0A99F`,
-brick `#B0392E`, gold `#B39140`, lavender `#9A9AC2`, rows `#F4F5F6`/`#EAECEE`,
-selected row `#FFF8E8`, cell outline `#2E5AAC`, title `#B08D3F`; 56px header,
-25px rows, 1320px table. Preserve these when editing the page.
+The layout is modelled on `reference/dashboard-screenshot.png`. Colours and geometry were
+sampled from that PNG rather than eyeballed — taupe `#B0A99F`, brick `#B0392E`, gold
+`#B39140`, lavender `#9A9AC2`, rows `#F4F5F6`/`#EAECEE`, selected row `#FFF8E8`, cell
+outline `#2E5AAC`, title `#B08D3F`; 56px header band, 25px rows. Preserve these.
 
 ## Commands
 
 Use `.venv/bin/python` for anything touching pandas. There is no test suite.
-Dependencies are pinned in `requirements.txt` (`numpy`, `pandas`, `openpyxl` — no scipy);
-rebuild the env with `python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt`.
+Dependencies are pinned in `requirements.txt` (numpy, pandas, openpyxl — no scipy);
+rebuild with `python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt`.
 
 ```bash
 .venv/bin/python generate_imm_data.py     # rewrite data/imm_data.xlsx
 python3.11 -m http.server 8321            # serve from the PROJECT ROOT
 ```
 
-Open http://localhost:8321/dashboard/. The server root must be the project root so
-`../data/imm_data.xlsx` resolves; this also matches a GitHub Pages layout. Editing the
-workbook needs no rebuild — just refresh.
+Open http://localhost:8321/. The server root must be the project root so `data/` and
+`config/` resolve; this also matches a GitHub Pages layout. Editing the workbook or the
+config needs no rebuild — just refresh.
 
-Useful generator flags: `--per-group` (mandates per group, default 10), `--seed`
-(default 42), `--derive-excess`, `--reason-null-when-in-scope`, `--out`, `--sheet-name`.
+Generator flags: `--per-group` (mandates per team, default 10), `--seed` (default 42),
+`--derive-excess`, `--reason-null-when-in-scope`, `--out`, `--sheet-name`.
 
 ## Environment constraints
 
-These are load-bearing; ignoring them wastes a lot of time.
+Load-bearing; ignoring these wastes a lot of time.
 
-- **Use `/usr/local/bin/python3.11`.** The system `/usr/bin/python3` is a broken 3.7
-  from Command Line Tools and dies with `pymain_compute_path0: memory allocation failed`.
+- **Use `/usr/local/bin/python3.11`.** The system `/usr/bin/python3` is a broken 3.7 from
+  Command Line Tools and dies with `pymain_compute_path0: memory allocation failed`.
 - **Do not import scipy.** It is installed but `from scipy.stats import ...` stalls for
-  many minutes — macOS Gatekeeper scans its hundreds of `.so` files on first load.
-  `generate_imm_data.py` deliberately builds the truncated-normal quantile from
-  `math.erf` and `statistics.NormalDist` instead. Keep it that way.
-- **The preview launcher cannot bind a port here.** `.claude/launch.json` exists, but
-  its process starts without ever listening. Start the server with Bash instead.
-- **`index.html` is browser-cached.** `data.js` and `settings.json` are fetched
-  `no-store`, but the page is not. After editing it, hard-reload or append `?v=N`.
-  A stale page silently renders old markup — verify with a cache-buster.
+  minutes while macOS Gatekeeper scans its many `.so` files. `generate_imm_data.py`
+  deliberately builds the truncated-normal quantile from `math.erf` and
+  `statistics.NormalDist`. Keep it that way.
+- **The preview launcher cannot bind a port here.** `.claude/launch.json` exists but its
+  process starts without ever listening. Start the server with Bash instead.
+- **`index.html` is browser-cached.** The workbook and `config/settings.json` are fetched
+  `no-store`, the page is not. After editing it, hard-reload or append `?v=N` — a stale
+  page silently renders old markup.
+- **`buildHead()` replaces the header row every render.** A held `<th>` reference goes
+  stale; re-query before dispatching a second click in any test script.
 
-## Dashboard architecture
+## How the page is organised
 
-`dashboard/index.html` is one self-contained file: CSS, markup, and an ES5-style IIFE.
-It holds no column knowledge — every column, colour, header, format, width and
-aggregation comes from `settings.json`, which it fetches at runtime and merges over a
-`FALLBACK` object (used only when opened over `file://`).
+`index.html` is one self-contained file: CSS, markup, and an ES5-style IIFE. It holds no
+column knowledge — every column, colour, header, format, width and aggregation comes from
+`config/settings.json`, merged over a `FALLBACK` object used only when opened over
+`file://`. The parsed workbook is exposed as `window.IMM` for console inspection.
 
-Config concepts, in the order a column resolves:
+`config/settings.json` carries its own `_readme` documenting every key; that block is the
+authority, so update it alongside any config change. Blocks, in reading order:
+`dataset` (which workbook, and which columns drive the furniture), `defaultGroup` /
+`defaultReportMonth` / `labels` (opening view and picker captions), `analytics` (colour and
+label per group), `columns` (workbook column -> analytics group -> header -> format),
+`groups` (the Team picker, each able to override columns/analytics/name), `table`
+(aggregation, sorting, paging, default width).
 
-1. `columns[]` — each entry names a real **imm_data.xlsx column**, its `analytics`
-   group (which supplies the header colour), its dashboard `header` (`|` splits lines)
-   and its `format`. Array order is display order.
-2. `analytics{}` — label and colour per group (`base`/`perf`/`risk`/`esg`/`kpi`, plus
-   any the user adds). `base` is always shown.
-3. `groups[]` — the Team picker, in order. Each entry may override `columns`,
-   `analytics` and `title` for that group alone. **A group's `columns` list wins over
-   analytics show/hide**, and may only name columns already defined in `columns[]`.
-4. `table{}` — `aggregation` (`wavg`|`avg`), `defaultSort` (one key or a list),
-   `pageSize`, `pageSizeOptions`.
-5. `dataset{}` — which workbook columns drive the furniture: report date, group, row id,
-   and the AUM weight used by `wavg`.
+Behaviours worth preserving when editing:
 
-`width`, `align` and `total` default from `format` (see `DEF` in the page), so a column
-entry normally needs only four fields. `total: "agg"` is the sentinel meaning
-"whatever `table.aggregation` says".
-
-Behaviours worth preserving when editing: the Total row aggregates the **whole
-selection**, never just the visible page; blanks always sort last; sort keys naming a
-column the current group hides are dropped rather than breaking the sort; bad config is
-surfaced in the amber banner rather than swallowed.
+- The Total row aggregates the **whole selection**, never just the visible page.
+- Sorting uses **what the cell displays** — a value hidden by `showWhen` sorts as blank,
+  and blanks always sort last in both directions.
+- Column widths are **measured** (canvas text metrics, bold, against the formatted value —
+  not the raw one), then converted into relative weights. Surplus table width goes to one
+  `flex` column rather than inflating every column.
+- A group's `columns` list wins over analytics show/hide, and may only name columns
+  already defined in the top-level `columns`.
+- Bad config surfaces in the amber banner rather than being swallowed.
 
 ## Working with settings.json
 
-The user edits `dashboard/config/settings.json` directly and has overwritten agent edits
-mid-session more than once. Back it up before touching it, preserve their `groups`,
-`analytics` and `columns` verbatim unless asked, and diff after writing.
+The user edits `config/settings.json` directly and has overwritten agent edits mid-session
+more than once. Back it up before touching it, preserve their `groups`, `analytics` and
+`columns` verbatim unless asked, re-read before writing, and diff afterwards. Do not write
+a "temporary" value into a key that may already exist.
 
 ## Known data caveats
 
-Faithful to the spec below, but worth restating before anyone reads the numbers as real:
+Faithful to the spec below, but restate these before anyone reads the numbers as real:
 
 - `excess_rtn_*` is drawn independently, so it does **not** equal
   `port_rtn_* - bmk_rtn_*`. `--derive-excess` fixes it.
 - Tightly truncated fields do not reproduce their stated mean/std — the listed moments
-  describe the pre-truncation normal. `beta` is the worst (−20.6 becomes ≈−240);
+  describe the pre-truncation normal. `beta` is worst (-20.6 becomes about -240);
   `aum_usd`, `port_total_risk` and `dv01_k_usd` also shift materially.
-- `aum_usd` may be negative. AUM-weighted averages therefore count positive weights only.
-- `port_total_risk` renders as 60–230% where the reference screenshot shows 0.1–10%.
+- `aum_usd` may be negative. AUM-weighted averages count positive weights only, and only
+  where the analytic itself is non-null.
+- `port_total_risk` / `total_risk_dd` render as 60-230% where the reference shows 0.1-10%.
 
 ---
 
