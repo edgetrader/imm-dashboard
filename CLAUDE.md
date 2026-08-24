@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A synthetic investment-mandate monitoring (IMM) panel and a static dashboard that reads it.
 
-    generate_imm_data.py  ->  data/imm_data.xlsx        (the panel, 360 rows x 44 columns)
-    generate_test_data.py ->  data/imm_test_data.xlsx   (hostile fixture, 1200 rows x 10 months)
+    generate_imm_data.py  ->  data/imm_data.xlsx        (the panel, 390 rows x 44 columns)
+    generate_test_data.py ->  data/imm_test_data.xlsx   (hostile fixture, 1300 rows x 10 months)
     index.html            <-  data/imm_data.xlsx        (parsed in the browser, no build step)
                           <-  config/settings.json      (fetched at runtime)
                           <-  config/orr-mapping.xlsx   (ORR grade -> order -> band)
@@ -40,6 +40,12 @@ config needs no rebuild — just refresh.
 
 Generator flags: `--per-group` (mandates per team, default 10), `--seed` (default 42),
 `--derive-excess`, `--reason-null-when-in-scope`, `--out`, `--sheet-name`.
+
+`EXCO_VIEW1` carries **thirteen** teams: the twelve observed categories listed in the spec
+below, plus `8b. Private Credit - TR`, which `config/settings.json` asks for but the
+original spec never listed. Adding or removing a team changes `n`, so every draw shifts
+and the whole workbook is rewritten — the numbers stay reproducible from `--seed`, but
+they are not stable across a change to this list.
 
 ### The test fixture
 

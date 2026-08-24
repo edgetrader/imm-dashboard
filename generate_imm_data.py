@@ -44,6 +44,7 @@ EXCO_VIEW1 = [
     "2. Global Equities",
     "5b. Advisory",
     "8a. Private Credit - IRR",
+    "8b. Private Credit - TR",
     "6. Private Equity / Venture Capital",
     "7. Real Estate",
     "10. Derivatives (MTM)",

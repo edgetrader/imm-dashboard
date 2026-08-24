@@ -39,8 +39,8 @@ Then open <http://localhost:8321/?data=data/imm_test_data.xlsx>.
 index.html                           the dashboard (self-contained CSS + JS, incl. an .xlsx reader)
 config/settings.json                 everything configurable, with its own inline reference
 config/orr-mapping.xlsx              ORR grade -> order -> band, used by the Total row
-data/imm_data.xlsx                   360 rows x 44 columns
-data/imm_test_data.xlsx              hostile test panel, 1200 rows x 10 months
+data/imm_data.xlsx                   390 rows x 44 columns
+data/imm_test_data.xlsx              hostile test panel, 1300 rows x 10 months
 generate_imm_data.py                 panel generator (spec -> xlsx)
 generate_test_data.py                test-panel generator (10 months + injected bad data)
 build_dashboard.py                   optional JSON dump of the workbook (not used by the page)
@@ -53,7 +53,7 @@ GitHub Pages layout, so the same files can be served as a live site with no buil
 
 ## The data
 
-Twelve teams x 10 mandates x 3 month-ends (31 May, 30 Jun, 31 Jul 2026) = **360 rows**.
+Thirteen teams x 10 mandates x 3 month-ends (31 May, 30 Jun, 31 Jul 2026) = **390 rows**.
 
 It is a genuine panel, not three independent samples. Static fields (name, team, entity,
 fund ORR, KPI scope) are constant across a mandate's three rows; time-varying fields evolve

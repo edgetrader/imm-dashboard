@@ -138,6 +138,10 @@
       "label": "Performance",
       "colour": "#B0392E"
     },
+    "perf2": {
+      "label": "Performance",
+      "colour": "#B0392E"
+    },
     "peer": {
       "label": "Peer Rank",
       "colour": "#B0392E"
@@ -195,6 +199,18 @@
       "column": "port_rtn_3y_ann",
       "analytics": "perf",
       "header": "Portfolio|Return (3Y)",
+      "format": "pct1"
+    },
+    {
+      "column": "excess_rtn_3y_ann",
+      "analytics": "perf2",
+      "header": "Excess|IRR (SI)",
+      "format": "pct1"
+    },
+    {
+      "column": "port_rtn_3y_ann",
+      "analytics": "perf2",
+      "header": "Portfolio|IRR (SI)",
       "format": "pct1"
     },
     {
@@ -293,58 +309,123 @@
   "groups": [
     {
       "group": "1a. Fixed Income - Total Return",
+      "name": "Fixed Income – Total Return",
       "analytics": {
         "peer": false,
+        "perf2": false,
         "risk2": false
       }
     },
     {
       "group": "1b. Fixed Income - Buy and Maintain",
+      "name": "Fixed Income – Buy and Maintain",
       "analytics": {
         "peer": false,
+        "perf2": false,
         "risk": false
+
       }
     },
     {
       "group": "2. Global Equities",
+      "name": "Global Equities",
       "analytics": {
         "peer": false,
+        "perf2": false,
         "risk2": false
+
       }
     },
     {
       "group": "3. Local Equities",
+      "name": "Local Equities",
       "analytics": {
         "peer": false,
+        "perf2": false,
         "risk2": false
+
       }
     },
     {
       "group": "4. ILP",
+      "name": "ILP",
       "analytics": {
-        "perf": false,
+        "peer": false,
+        "perf2": false,
         "risk2": false
+
       }
     },
     {
       "group": "5a. Discretion",
+      "name": "Discretion",
       "analytics": {
         "peer": false,
+        "perf2": false,
         "risk2": false
+
       }
     },
     {
       "group": "5b. Advisory",
+      "name": "Advisory",
       "analytics": {
         "peer": false,
+        "perf2": false,
+        "risk2": false
+
+      }
+    },
+    {
+      "group": "6. Private Equity / Venture Capital",
+      "name": "Private Equity / Venture Capital",
+      "analytics": {
+        "peer": false,
+        "perf": false,
+        "risk": false,
+        "risk2": false,
+        "esg": false
+      }
+    },
+    {
+      "group": "7. Real Estate",
+      "name": "Real Estate",
+      "analytics": {
+        "peer": false,
+        "perf": false,
+        "risk": false,
+        "risk2": false,
+        "esg": false
+      }
+    },
+    {
+      "group": "8a. Private Credit - IRR",
+      "name": "Private Credit – IRR",
+      "analytics": {
+        "peer": false,
+        "perf": false,
+        "risk": false,
+        "risk2": false,
+        "esg": false
+      }
+    },
+    {
+      "group": "8b. Private Credit - TR",
+      "name": "Private Credit – TR",
+      "analytics": {
+        "peer": false,
+        "perf2": false,
         "risk2": false
       }
     },
     {
       "group": "11. Others",
+      "name": "Others",
       "analytics": {
         "peer": false,
+        "perf2": false,
         "risk2": false
+
       }
     }
   ],
