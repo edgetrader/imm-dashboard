@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A synthetic investment-mandate monitoring (IMM) panel and a static dashboard that reads it.
 
     generate_imm_data.py  ->  data/imm_data.xlsx        (the panel, 360 rows x 44 columns)
+    generate_test_data.py ->  data/imm_test_data.xlsx   (hostile fixture, 1200 rows x 10 months)
     index.html            <-  data/imm_data.xlsx        (parsed in the browser, no build step)
                           <-  config/settings.json      (fetched at runtime)
                           <-  config/orr-mapping.xlsx   (ORR grade -> order -> band)
@@ -29,6 +30,7 @@ rebuild with `python3.11 -m venv .venv && .venv/bin/pip install -r requirements.
 
 ```bash
 .venv/bin/python generate_imm_data.py     # rewrite data/imm_data.xlsx
+.venv/bin/python generate_test_data.py    # rewrite data/imm_test_data.xlsx
 python3.11 -m http.server 8321            # serve from the PROJECT ROOT
 ```
 
@@ -38,6 +40,24 @@ config needs no rebuild — just refresh.
 
 Generator flags: `--per-group` (mandates per team, default 10), `--seed` (default 42),
 `--derive-excess`, `--reason-null-when-in-scope`, `--out`, `--sheet-name`.
+
+### The test fixture
+
+`generate_test_data.py` builds a deliberately hostile panel — ten month-ends, and 26
+named scenarios injected at known (team, month) cells. Load it without touching the real
+workbook:
+
+    http://localhost:8321/?data=data/imm_test_data.xlsx
+
+Each scenario targets one aggregation path with a stated expectation: an all-null column,
+null / negative / zero / text weights, grades absent from the ORR mapping, an all-`NR`
+team, ranks that are all 1 or none, and text sentinels, Excel error cells, genuine
+empty-string cells and extreme magnitudes in the numeric columns. `--manifest <path>`
+dumps team / month / scenario / expectation as JSON.
+
+The fixture only puts pathologies where the configured team actually *shows* the column:
+ORR appears on `1b. Fixed Income - Buy and Maintain` alone and peer rank on `4. ILP`
+alone, so the band and share scenarios live there. Re-point them if `groups` changes.
 
 ## Environment constraints
 
@@ -89,6 +109,52 @@ Behaviours worth preserving when editing:
 - A group's `columns` list wins over analytics show/hide, and may only name columns
   already defined in the top-level `columns`.
 - Bad config surfaces in the amber banner rather than being swallowed.
+- **Missing values are missing everywhere** — see below.
+
+### Missing values
+
+`missing()` and `num()` near the top of the script are the single definition of "no
+value", and every formatter, aggregation and sort key reads through them. This is
+load-bearing, not defensive tidying:
+
+- A workbook can hold an **empty string** as well as a blank cell — a formula returning
+  `""` is stored as `t="str"` with an empty `<v>`. Treated naively it is not `null`, so
+  it used to weigh into a weighted average *as a zero* and silently drag it down. There
+  was no NaN to give it away; the number just quietly went wrong.
+- Text sentinels (`N/A`, `NA`, `-`, `n.a.`, `nil`, `none`, …) reached the formatters and
+  rendered `NaN%`, and `sum` concatenated them into a string.
+- Excel error cells (`#N/A`, `#DIV/0!`) already arrive as `null` from the reader, because
+  `cellValue` maps cell type `e` to null. The codes are in the `MISSING` table anyway,
+  in case one arrives as text from some other producer.
+
+Consequences to preserve:
+
+- A row with no value carries **no weight either** — it sits in neither the numerator nor
+  the denominator, so a blank cannot dilute an average.
+- `sum` returns blank, not `0`, when nothing contributed. "No AUM at all" and "AUM that
+  genuinely nets to zero" must not render identically.
+- Sorting resolves through `missing()` and, for numeric formats, through `num()`, so a
+  cell that reads blank sorts blank and numbers never sort as text.
+- A recognised sentinel blanks the cell **silently** — that is what it is for. Text that
+  is *not* recognised (`"pending"`, `"TBD"`) blanks the cell **and** is named in the amber
+  banner by `reportJunk()`, because that is a data problem someone should see.
+
+`config/settings.json` needs no key for any of this; it is unconditional page behaviour.
+
+### Aggregating a share (`total: "share"`)
+
+`share` reports the fraction of weight whose value is one of `share.values` — the peer
+rank columns use it for "percentage of AUM ranked 1 or 2":
+
+```json
+{ "column": "peer_rank_1y", "format": "int", "total": "share",
+  "share": { "values": [1, 2], "format": "pct1" } }
+```
+
+Values are compared as strings, so `[1, 2]` matches numeric and text codes alike. Rows
+with no value are ignored **entirely** — neither numerator nor denominator — so the base
+excludes unranked AUM rather than counting it as a miss. Rows with non-positive weight
+drop out too, matching `wavg`. With no weight left the cell is blank, never `0.0%`.
 
 ### ORR aggregation (`total: "band"`)
 

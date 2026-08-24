@@ -24,6 +24,15 @@ To regenerate the data itself:
 .venv/bin/python generate_imm_data.py     # -> data/imm_data.xlsx
 ```
 
+There is also a hostile test panel — ten months of the same universe, with missing and
+malformed values injected on purpose. It loads without disturbing the real workbook:
+
+```bash
+.venv/bin/python generate_test_data.py    # -> data/imm_test_data.xlsx
+```
+
+Then open <http://localhost:8321/?data=data/imm_test_data.xlsx>.
+
 ## Layout
 
 ```
@@ -31,7 +40,9 @@ index.html                           the dashboard (self-contained CSS + JS, inc
 config/settings.json                 everything configurable, with its own inline reference
 config/orr-mapping.xlsx              ORR grade -> order -> band, used by the Total row
 data/imm_data.xlsx                   360 rows x 44 columns
+data/imm_test_data.xlsx              hostile test panel, 1200 rows x 10 months
 generate_imm_data.py                 panel generator (spec -> xlsx)
+generate_test_data.py                test-panel generator (10 months + injected bad data)
 build_dashboard.py                   optional JSON dump of the workbook (not used by the page)
 reference/dashboard-screenshot.png   the layout this is modelled on
 CLAUDE.md                            data specification + guidance for Claude Code
@@ -130,6 +141,36 @@ browser and survive team switches, sorting and reload.
 
 If you do want to fix one, `"width": 240` on a column sets it in px, and `"flex": true`
 makes that column swallow any width the table has spare instead of the browser sharing it.
+
+### Missing values
+
+Blank cells, empty strings, Excel error cells (`#N/A`, `#DIV/0!`) and the usual typed
+sentinels (`N/A`, `NA`, `-`, `n.a.`, `nil`, `none`) all mean the same thing: no value.
+
+- A missing value **carries no weight**, so it sits in neither the numerator nor the
+  denominator of an average and cannot drag one toward zero.
+- A sum shows **blank rather than `0`** when nothing contributed, so "no data" and "the
+  numbers genuinely net to zero" stay distinguishable.
+- A blank cell **sorts as blank**, matching what you see, and numeric columns always sort
+  as numbers.
+- Recognised sentinels blank out silently. Text that *isn't* recognised — `pending`,
+  `TBD` — blanks the cell **and** is named in the amber banner, because that is a data
+  problem rather than a convention.
+
+None of this is configurable; it applies to every column.
+
+### Aggregating a share
+
+`total: "share"` reports the share of weight whose value is one of a listed set — the peer
+rank columns use it for "percentage of AUM ranked 1 or 2":
+
+```json
+{ "column": "peer_rank_1y", "format": "int", "total": "share",
+  "share": { "values": [1, 2], "format": "pct1" } }
+```
+
+Mandates with no rank are left out of the base entirely, so the percentage is of *ranked*
+AUM, not of all AUM. If nothing carries weight the cell is blank rather than `0.0%`.
 
 ### Aggregating a coded column
 

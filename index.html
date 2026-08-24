@@ -177,13 +177,40 @@
     groups: null
   };
 
+  // Everything that means "no value". A blank cell already arrives as null, but
+  // a workbook can also carry an empty string (a formula returning "") and the
+  // sentinels people type by hand. All of them must be missing everywhere --
+  // formatted, aggregated and sorted -- or an empty string silently weighs into
+  // a weighted average as a zero. Excel's own error cells are mapped to null by
+  // the reader; the codes are listed anyway in case one arrives as text.
+  var MISSING = {
+    "": 1, "-": 1, "--": 1, ".": 1, "?": 1, "na": 1, "n/a": 1, "n.a.": 1,
+    "nil": 1, "none": 1, "null": 1, "nan": 1, "#n/a": 1, "#value!": 1,
+    "#div/0!": 1, "#ref!": 1, "#name?": 1, "#num!": 1, "#null!": 1
+  };
+  function missing(v){
+    if (v == null) return true;
+    if (typeof v === "number") return !isFinite(v);
+    return MISSING[String(v).trim().toLowerCase()] === 1;
+  }
+  // A finite number, or null. Text is parsed only if it is wholly numeric, so
+  // "1.5" counts and "1.5x" does not -- guessing at half-numeric text would be
+  // worse than dropping it, because the reader cannot ask what was meant.
+  function num(v){
+    if (missing(v)) return null;
+    var n = typeof v === "number" ? v : Number(String(v).trim());
+    return typeof n === "number" && isFinite(n) ? n : null;
+  }
+  // Formats whose values are numbers, and so must sort and aggregate as numbers.
+  var NUMERIC_FMT = {musd: 1, pct1: 1, num2: 1, int: 1, tick: 1};
+
   var FMT = {
     text: function(v){ return v == null ? "" : String(v); },
-    musd: function(v){ return v == null ? "" : Math.round(v/1e6).toLocaleString("en-US") + "M"; },
-    pct1: function(v){ return v == null ? "" : (v*100).toFixed(1) + "%"; },
-    num2: function(v){ return v == null ? "" : Number(v).toFixed(2); },
-    int:  function(v){ return v == null ? "" : Math.round(v).toLocaleString("en-US"); },
-    tick: function(v){ return Number(v) === 1 ? "✓" : ""; }
+    musd: function(v){ v = num(v); return v == null ? "" : Math.round(v/1e6).toLocaleString("en-US") + "M"; },
+    pct1: function(v){ v = num(v); return v == null ? "" : (v*100).toFixed(1) + "%"; },
+    num2: function(v){ v = num(v); return v == null ? "" : v.toFixed(2); },
+    int:  function(v){ v = num(v); return v == null ? "" : Math.round(v).toLocaleString("en-US"); },
+    tick: function(v){ return num(v) === 1 ? "✓" : ""; }
   };
   // Per-format defaults, so a column entry only needs column/analytics/header/format.
   // Per-format defaults for alignment and Total behaviour. Widths are not
@@ -235,7 +262,9 @@
   }
 
   function vals(rows, key){
-    return rows.map(function(r){ return r[key]; }).filter(function(x){ return x != null; });
+    var out = [];
+    rows.forEach(function(r){ var x = num(r[key]); if (x != null) out.push(x); });
+    return out;
   }
   function mean(rows, key){
     var v = vals(rows, key);
@@ -245,16 +274,24 @@
   // negative AUM, which would otherwise invert the average. Falls back to a
   // simple mean when no row carries positive weight.
   function wmean(rows, key){
-    var num = 0, den = 0, W = DS.weightColumn;
+    var acc = 0, den = 0, W = DS.weightColumn;
     rows.forEach(function(r){
-      var w = r[W] > 0 ? r[W] : 0;
-      if (r[key] != null){ num += w * r[key]; den += w; }
+      var x = num(r[key]);
+      if (x == null) return;                 // no value: carries no weight either
+      var w = num(r[W]);
+      w = w != null && w > 0 ? w : 0;
+      acc += w * x; den += w;
     });
-    return den > 0 ? num / den : mean(rows, key);
+    return den > 0 ? acc / den : mean(rows, key);
   }
   function aggregate(rows, key, how){
     if (how === "agg") how = TBL.aggregation;
-    if (how === "sum")  return rows.reduce(function(a, r){ return a + (r[key] || 0); }, 0);
+    if (how === "sum"){
+      // Blank when there was nothing to add, so "no data" cannot masquerade as 0.
+      var s = 0, any = false;
+      rows.forEach(function(r){ var x = num(r[key]); if (x != null){ s += x; any = true; } });
+      return any ? s : null;
+    }
     if (how === "avg")  return mean(rows, key);
     if (how === "wavg") return wmean(rows, key);
     return null;
@@ -273,8 +310,9 @@
     var W = DS.weightColumn, hit = 0, tot = 0;
     rows.forEach(function(r){
       var v = r[c.column];
-      if (v == null || v === "" || !visible(c, r)) return;   // no rank: ignored
-      var w = r[W] > 0 ? r[W] : 0;                           // only positive weight counts
+      if (missing(v) || !visible(c, r)) return;   // no rank: ignored entirely
+      var w = num(r[W]);
+      w = w != null && w > 0 ? w : 0;             // only positive weight counts
       if (!w) return;
       tot += w;
       if (want[String(v)]) hit += w;
@@ -289,21 +327,22 @@
   function bandAggregate(rows, c){
     var tbl = BANDS[c.column];
     if (!tbl) return null;
-    var W = DS.weightColumn, num = 0, den = 0, plain = [];
+    var W = DS.weightColumn, acc = 0, den = 0, plain = [];
 
     rows.forEach(function(r){
       var lab = r[c.column];
-      if (lab == null || !visible(c, r)) return;
+      if (missing(lab) || !visible(c, r)) return;
       var e = tbl.byLabel[String(lab)];
       if (!e){ warn.push('ORR grade "' + lab + '" is not in ' + tbl.source); return; }
       if (e.excluded) return;
       plain.push(e.value);
-      var w = r[W] > 0 ? r[W] : 0;
-      num += w * e.value; den += w;
+      var w = num(r[W]);
+      w = w != null && w > 0 ? w : 0;
+      acc += w * e.value; den += w;
     });
 
     var x;
-    if (den > 0) x = num / den;
+    if (den > 0) x = acc / den;
     else if (plain.length) x = plain.reduce(function(a, b){ return a + b; }, 0) / plain.length;
     else return null;
 
@@ -316,6 +355,24 @@
     var last = list[list.length - 1];
     if (x >= last.max) return last.label;          // the top band includes its max
     return list[0].label;                          // below the scale
+  }
+  // Recognised sentinels blank out silently -- that is what they are for. Text
+  // that is NOT a recognised sentinel is a data problem the reader should see,
+  // so it blanks the cell and says so in the banner rather than vanishing.
+  function reportJunk(rows){
+    cols.forEach(function(c){
+      if (!NUMERIC_FMT[c.format]) return;
+      var seen = [], n = 0;
+      rows.forEach(function(r){
+        var v = r[c.column];
+        if (missing(v) || num(v) != null) return;
+        n++;
+        if (seen.length < 3 && seen.indexOf(String(v)) === -1) seen.push(String(v));
+      });
+      if (n) warn.push(n + ' non-numeric value' + (n === 1 ? "" : "s") + ' in "'
+                       + c.column + '" ignored (' + seen.map(function(x){
+                         return '"' + x + '"'; }).join(", ") + ')');
+    });
   }
   function aggLabel(){
     return TBL.aggregation === "avg" ? "simple averages" : "AUM-weighted averages";
@@ -339,7 +396,10 @@
     cols.forEach(function(c){ byCol[c.column] = c; });
     function shown(r, col){
       var c = byCol[col];
-      return (c && !visible(c, r)) ? null : r[col];
+      if (c && !visible(c, r)) return null;
+      var v = r[col];
+      if (missing(v)) return null;                       // blank on screen, blank to sort
+      return c && NUMERIC_FMT[c.format] ? num(v) : v;    // never sort numbers as text
     }
     return function(a, b){
       for (var i = 0; i < keys.length; i++){
@@ -645,6 +705,7 @@
       return r[DS.groupColumn] === gKey && r[DS.reportDateColumn] === m;
     });
     if (sortKeys.length) all = all.slice().sort(sorter(sortKeys));
+    reportJunk(all);
 
     // Totals always cover the whole selection, never just the visible page.
     var pages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(all.length / pageSize));
