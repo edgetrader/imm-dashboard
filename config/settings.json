@@ -350,7 +350,7 @@
       "group": "4. ILP",
       "name": "ILP",
       "analytics": {
-        "peer": false,
+        "perf": false,
         "perf2": false,
         "risk2": false
 
